@@ -37,7 +37,7 @@ const prisma = new PrismaClient({
 
 export async function POST(req: Request) {
   try {
-    const { imageUrl, prompt } = await req.json();
+    const { imageUrl, prompt, profileId } = await req.json();
 
     if (!imageUrl || !prompt) {
       return NextResponse.json(
@@ -45,8 +45,6 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
-    
 
     // 1. 画像をダウンロード
     const imageResponse = await fetch(imageUrl);
@@ -89,10 +87,18 @@ export async function POST(req: Request) {
     // 5. Prismaでデータベースに保存
     const vectorString = `[${embedding.join(",")}]`;
 
-    const savedImage = await prisma.$executeRaw`
-      INSERT INTO images (prompt, image_url, embedding_vector)
-      VALUES (${prompt}, ${publicUrl}, ${vectorString}::vector)
-    `;
+    let savedImage;
+    if (profileId) {
+      savedImage = await prisma.$executeRaw`
+        INSERT INTO images (profile_id, prompt, image_url, embedding_vector)
+        VALUES (${profileId}::uuid, ${prompt}, ${publicUrl}, ${vectorString}::vector)
+      `;
+    } else {
+      savedImage = await prisma.$executeRaw`
+        INSERT INTO images (profile_id, prompt, image_url, embedding_vector)
+        VALUES (NULL, ${prompt}, ${publicUrl}, ${vectorString}::vector)
+      `;
+    }
     
 
     return NextResponse.json({

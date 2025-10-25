@@ -13,6 +13,7 @@ import { Download, Copy, ThumbsUp, ThumbsDown } from "lucide-react"
 import type { ImageMeta } from "@/app/api"
 import { useToast } from "@/hooks/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useAuth } from "@/contexts/AuthContext"
 
 interface GenerationDialogProps {
   open: boolean
@@ -24,6 +25,7 @@ export function GenerationDialog({ open, onOpenChange, image }: GenerationDialog
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isContributing, setIsContributing] = useState(false)
   const { toast } = useToast()
+  const { user } = useAuth()
 
   if (!image) return null
 
@@ -115,6 +117,7 @@ export function GenerationDialog({ open, onOpenChange, image }: GenerationDialog
         body: JSON.stringify({
           imageUrl: image.url,
           prompt: image.prompt,
+          profileId: user?.id || null,
         }),
       })
 
