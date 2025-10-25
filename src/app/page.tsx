@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { GenerationDialog } from '@/components/ui/generationModal';
 import { Toaster } from '@/components/ui/toast';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/useToast';
 import type { ImageMeta } from '@/app/api';
 import { Search, ThumbsUp, ThumbsDown, Copy as CopyIcon, Check, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
