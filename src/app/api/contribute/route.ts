@@ -136,6 +136,12 @@ export async function POST(req: Request) {
       );
     }
 
+    await prisma.profile.upsert({
+      where: { id: profileId },
+      update: {},
+      create: { id: profileId },
+    });
+
     // 1. 画像をダウンロード
     const imageResponse = await fetch(imageUrl);
     if (!imageResponse.ok) {
