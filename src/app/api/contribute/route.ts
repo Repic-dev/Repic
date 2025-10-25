@@ -1,20 +1,16 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
-import { createServerClient } from "@supabase/ssr";
 import OpenAI from "openai";
 import { PrismaClient } from "@/generated/prisma";
 
-type CookieOptions = {
-  domain?: string;
-  path?: string;
-  secure?: boolean;
-  httpOnly?: boolean;
-  sameSite?: true | false | "lax" | "strict" | "none";
-  maxAge?: number;
-  expires?: Date | number;
-  priority?: "low" | "medium" | "high";
-  partitioned?: boolean;
+type CookieStore = Awaited<ReturnType<typeof cookies>>;
+
+type SupabaseSession = {
+  access_token?: string;
+  user?: {
+    id?: string;
+  };
 };
 
 // 環境変数のチェック
@@ -39,6 +35,19 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+const supabaseProjectRef = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname.split(".")[0];
+const SUPABASE_AUTH_COOKIE_NAME = `sb-${supabaseProjectRef}-auth-token`;
+
+async function getCookieStore(): Promise<CookieStore> {
+  const store = cookies();
+
+  if (typeof (store as PromiseLike<CookieStore>).then === "function") {
+    return store as Promise<CookieStore>;
+  }
+
+  return store as CookieStore;
+}
 
 // OpenAI クライアントの初期化
 const openai = new OpenAI({
@@ -74,55 +83,37 @@ export async function POST(req: Request) {
     const imageBuffer = Buffer.from(await imageBlob.arrayBuffer());
 
     // 1.5. 認証済みユーザーの取得
-    const cookieStore = await cookies();
-    const supabaseAuthClient = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options?: CookieOptions) {
-            try {
-              cookieStore.set({
-                name,
-                value,
-                ...options,
-              });
-            } catch (error) {
-              console.warn("Failed to set cookie", error);
-            }
-          },
-          remove(name: string, options?: CookieOptions) {
-            try {
-              if (!options) {
-                cookieStore.delete(name);
-                return;
-              }
+    const cookieStore = await getCookieStore();
 
-              const { expires: _expires, ...deleteOptions } = options;
+    let profileId: string | null = null;
 
-              cookieStore.delete({
-                name,
-                ...deleteOptions,
-              });
-            } catch (error) {
-              console.warn("Failed to remove cookie", error);
-            }
-          },
-        },
+    try {
+      const [authCookie] = cookieStore.getAll(SUPABASE_AUTH_COOKIE_NAME);
+
+      if (authCookie?.value?.startsWith("base64-")) {
+        const sessionPayload = authCookie.value.slice("base64-".length);
+        const decoded = Buffer.from(sessionPayload, "base64").toString("utf-8");
+        const session: SupabaseSession = JSON.parse(decoded);
+
+        if (session.access_token) {
+          const {
+            data: { user },
+            error: authLookupError,
+          } = await supabase.auth.getUser(session.access_token);
+
+          if (authLookupError) {
+            console.error("Failed to validate Supabase session", authLookupError);
+            profileId = session.user?.id ?? null;
+          } else {
+            profileId = user?.id ?? null;
+          }
+        } else {
+          profileId = session.user?.id ?? null;
+        }
       }
-    );
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAuthClient.auth.getUser();
-    if (authError) {
-      console.error("Failed to fetch authenticated user", authError);
+    } catch (error) {
+      console.error("Failed to resolve authenticated user from cookie", error);
     }
-    const profileId = user?.id ?? null;
 
     // 2. Supabase Storageにアップロード
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
