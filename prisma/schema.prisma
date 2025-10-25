@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+/**
+ * profiles テーブル
+ * - auth.users(id) と 1:1
+ * - 作成はDB側トリガ（on auth.users insert）で行う
+ */
+model Profile {
+  id          String    @id @db.Uuid
+  handle      String?   @unique
+  displayName String?   @map("display_name")
+  avatarUrl   String?   @map("avatar_url")
+  bio         String?
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  images      Image[]
+
+  @@map("profiles")
+}
+
+/**
+ * images テーブル
+ * - profilesテーブルのidを参照
+ * - リレーション先は Profile モデル
+ */
+model Image {
+  id        String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profileId String?                @map("profile_id") @db.Uuid
+  prompt    String
+  imageUrl  String                 @map("image_url")
+  embedding Unsupported("vector")? @map("embedding_vector")
+  createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  profile   Profile?               @relation(fields: [profileId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([embedding], map: "idx_images_embedding")
+  @@map("images")
+}
