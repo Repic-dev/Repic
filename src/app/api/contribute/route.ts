@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
 import OpenAI from "openai";
 import { PrismaClient } from "@/generated/prisma";
 
@@ -9,6 +11,9 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
 }
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set");
+}
+if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  throw new Error("NEXT_PUBLIC_SUPABASE_ANON_KEY is not set");
 }
 if (!process.env.OPENAI_API_KEY) {
   throw new Error("OPENAI_API_KEY is not set");
@@ -56,6 +61,31 @@ export async function POST(req: Request) {
     const imageBlob = await imageResponse.blob();
     const imageBuffer = Buffer.from(await imageBlob.arrayBuffer());
 
+    // 1.5. 認証済みユーザーの取得
+    const cookieStore = await (cookies() as unknown as Promise<any>);
+    const supabaseAuthClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set(name: string, value: string, options?: any) {
+            cookieStore.set({ name, value, ...options });
+          },
+          remove(name: string, options?: any) {
+            cookieStore.set({ name, value: "", ...options, maxAge: 0 });
+          },
+        },
+      }
+    );
+
+    const {
+      data: { user },
+    } = await supabaseAuthClient.auth.getUser();
+    const profileId = user?.id ?? null;
+
     // 2. Supabase Storageにアップロード
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
     const { error: uploadError } = await supabase.storage
@@ -90,8 +120,8 @@ export async function POST(req: Request) {
     const vectorString = `[${embedding.join(",")}]`;
 
     const savedImage = await prisma.$executeRaw`
-      INSERT INTO images (prompt, image_url, embedding_vector)
-      VALUES (${prompt}, ${publicUrl}, ${vectorString}::vector)
+      INSERT INTO images (profile_id, prompt, image_url, embedding_vector)
+      VALUES (${profileId}, ${prompt}, ${publicUrl}, ${vectorString}::vector)
     `;
     
 
