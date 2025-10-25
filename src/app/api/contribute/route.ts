@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
-import { PrismaClient } from "@/generated/prisma";
+import { PrismaClient, Prisma } from "@/generated/prisma";
 
 type SupabaseAuthSession = {
   access_token?: string;
@@ -86,43 +86,77 @@ const prisma = new PrismaClient({
   },
 });
 
-async function ensureProfileExists(profileId: string): Promise<boolean> {
-  const { data: existingData, error: fetchError } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("id", profileId)
-    .maybeSingle();
+async function ensureProfileExists(profileId: string): Promise<string | null> {
+  try {
+    const existingProfile = await prisma.profile.findUnique({
+      where: { id: profileId },
+      select: { id: true },
+    });
 
-  if (fetchError && fetchError.code !== "PGRST116") {
-    console.error("Failed to fetch profile:", fetchError);
-    return false;
+    if (existingProfile?.id) {
+      return existingProfile.id;
+    }
+  } catch (error) {
+    console.error("Failed to query profile via Prisma:", error);
   }
 
-  if (existingData?.id) {
-    return true;
+  const { data: userData, error: adminError } = await supabase.auth.admin.getUserById(
+    profileId
+  );
+
+  if (adminError || !userData?.user) {
+    console.error("Supabase admin user lookup failed:", adminError);
+    return null;
   }
 
-  const { error: insertError } = await supabase
-    .from("profiles")
-    .insert({ id: profileId });
+  const metadata = (userData.user.user_metadata ?? {}) as Record<string, unknown>;
+  const displayName =
+    typeof metadata.display_name === "string"
+      ? metadata.display_name
+      : typeof metadata.full_name === "string"
+        ? metadata.full_name
+        : typeof metadata.name === "string"
+          ? metadata.name
+          : typeof userData.user.email === "string"
+            ? userData.user.email
+            : null;
+  const avatarUrl =
+    typeof metadata.avatar_url === "string" ? metadata.avatar_url : null;
 
-  if (insertError && insertError.code !== "23505") {
-    console.error("Failed to insert profile:", insertError);
-    return false;
+  try {
+    await prisma.profile.create({
+      data: {
+        id: profileId,
+        displayName,
+        avatarUrl,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        // Profile already created concurrently, continue.
+      } else if (error.code === "P2003") {
+        console.error("Profile creation failed due to missing auth user:", error);
+        return null;
+      } else {
+        console.error("Profile creation failed:", error);
+      }
+    } else {
+      console.error("Unexpected profile creation error:", error);
+    }
   }
 
-  const { data: confirmedProfile, error: confirmError } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("id", profileId)
-    .maybeSingle();
+  try {
+    const confirmedProfile = await prisma.profile.findUnique({
+      where: { id: profileId },
+      select: { id: true },
+    });
 
-  if (confirmError && confirmError.code !== "PGRST116") {
-    console.error("Failed to confirm profile existence:", confirmError);
-    return false;
+    return confirmedProfile?.id ?? null;
+  } catch (error) {
+    console.error("Failed to confirm profile existence via Prisma:", error);
+    return null;
   }
-
-  return Boolean(confirmedProfile?.id);
 }
 
 export async function POST(req: Request) {
@@ -175,14 +209,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const profileReady = await ensureProfileExists(profileId);
-    if (!profileReady) {
+    const ensuredProfileId = await ensureProfileExists(profileId);
+    if (!ensuredProfileId) {
       console.error("Profile not found for authenticated user", profileId);
       return NextResponse.json(
         { error: "Profile not found" },
         { status: 404 }
       );
     }
+    profileId = ensuredProfileId;
 
     // 1. 画像をダウンロード
     const imageResponse = await fetch(imageUrl);
