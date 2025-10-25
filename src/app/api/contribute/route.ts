@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     const imageBuffer = Buffer.from(await imageBlob.arrayBuffer());
 
     // 1.5. 認証済みユーザーの取得
-    const cookieStore = await (cookies() as unknown as Promise<any>);
+    const cookieStore = cookies();
     const supabaseAuthClient = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -72,10 +72,18 @@ export async function POST(req: Request) {
             return cookieStore.get(name)?.value;
           },
           set(name: string, value: string, options?: any) {
-            cookieStore.set({ name, value, ...options });
+            try {
+              cookieStore.set({ name, value, ...options });
+            } catch (error) {
+              console.warn("Failed to set cookie", error);
+            }
           },
           remove(name: string, options?: any) {
-            cookieStore.set({ name, value: "", ...options, maxAge: 0 });
+            try {
+              cookieStore.set({ name, value: "", ...options, maxAge: 0 });
+            } catch (error) {
+              console.warn("Failed to remove cookie", error);
+            }
           },
         },
       }
@@ -83,7 +91,11 @@ export async function POST(req: Request) {
 
     const {
       data: { user },
+      error: authError,
     } = await supabaseAuthClient.auth.getUser();
+    if (authError) {
+      console.error("Failed to fetch authenticated user", authError);
+    }
     const profileId = user?.id ?? null;
 
     // 2. Supabase Storageにアップロード
@@ -119,7 +131,7 @@ export async function POST(req: Request) {
     // 5. Prismaでデータベースに保存
     const vectorString = `[${embedding.join(",")}]`;
 
-    const savedImage = await prisma.$executeRaw`
+    await prisma.$executeRaw`
       INSERT INTO images (profile_id, prompt, image_url, embedding_vector)
       VALUES (${profileId}, ${prompt}, ${publicUrl}, ${vectorString}::vector)
     `;
