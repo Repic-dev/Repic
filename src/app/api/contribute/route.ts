@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
-import { PrismaClient } from "@/generated/prisma";
-
 type SupabaseAuthSession = {
-  access_token?: string;
-  user?: { id?: string } | null;
+  access_token?: string | null;
+  user?: { id?: string | null } | null;
   currentSession?: {
-    access_token?: string;
-    user?: { id?: string } | null;
+    access_token?: string | null;
+    user?: { id?: string | null } | null;
   } | null;
 };
 
@@ -80,24 +78,10 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
 if (!process.env.OPENAI_API_KEY) {
   throw new Error("OPENAI_API_KEY is not set");
 }
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set");
-}
-
 // Supabase クライアントの初期化（Service Role Key使用）
 const supabaseService = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-const supabaseAuth = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  }
 );
 
 // OpenAI クライアントの初期化
@@ -105,79 +89,99 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Prisma クライアントの初期化
-const prisma = new PrismaClient({
-  datasources: {
-    db: { url: process.env.DATABASE_URL },
-  },
-});
+function decodeJwtUserId(token: string | null): string | null {
+  if (!token) {
+    return null;
+  }
 
-type MinimalUser = {
-  id: string;
-  email?: string | null;
-  user_metadata?: Record<string, unknown> | null;
-};
+  const parts = token.split(".");
+  if (parts.length < 2) {
+    return null;
+  }
 
-async function ensureProfileExists(
-  profileId: string,
-  user: MinimalUser
-): Promise<string | null> {
-  const existingProfile = await prisma.profile.findUnique({
-    where: { id: profileId },
-    select: { id: true },
-  });
+  try {
+    const payload = parts[1]
+      .replace(/-/g, "+")
+      .replace(/_/g, "/")
+      .padEnd(Math.ceil(parts[1].length / 4) * 4, "=");
+    const decoded = Buffer.from(payload, "base64").toString("utf-8");
+    const parsed = JSON.parse(decoded) as { sub?: unknown };
+    return typeof parsed.sub === "string" ? parsed.sub : null;
+  } catch (error) {
+    console.error("Failed to decode Supabase JWT payload:", error);
+    return null;
+  }
+}
+
+async function ensureProfileExists(profileId: string): Promise<string | null> {
+  if (!profileId) {
+    return null;
+  }
+
+  const { data: existingProfile, error: existingError } = await supabaseService
+    .from("profiles")
+    .select("id")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (existingError && existingError.code !== "PGRST116") {
+    console.error("Failed to fetch profile:", existingError);
+    return null;
+  }
 
   if (existingProfile?.id) {
     return existingProfile.id;
   }
 
-  const authUsers = await prisma.$queryRaw<
-    { id: string; email: string | null }[]
-  >`SELECT id::text AS id, email FROM auth.users WHERE id = ${profileId}::uuid LIMIT 1`;
+  const { data: upsertedProfile, error: upsertError } = await supabaseService
+    .from("profiles")
+    .upsert({ id: profileId }, { onConflict: "id" })
+    .select("id")
+    .single();
 
-  if (!authUsers[0]) {
-    console.error("auth.users record missing for profile", profileId);
+  if (upsertError) {
+    console.error("Failed to upsert profile:", upsertError);
     return null;
   }
 
-  const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
-  const displayName =
-    typeof metadata.display_name === "string"
-      ? metadata.display_name
-      : typeof metadata.full_name === "string"
-        ? metadata.full_name
-        : typeof metadata.name === "string"
-          ? metadata.name
-          : typeof user.email === "string"
-            ? user.email
-            : null;
-  const avatarUrl =
-    typeof metadata.avatar_url === "string" ? metadata.avatar_url : null;
+  return upsertedProfile?.id ?? profileId;
+}
 
-  try {
-    await prisma.profile.upsert({
-      where: { id: profileId },
-      create: {
-        id: profileId,
-        displayName: displayName ?? null,
-        avatarUrl: avatarUrl ?? null,
-      },
-      update: {
-        displayName: displayName ?? undefined,
-        avatarUrl: avatarUrl ?? undefined,
-      },
-    });
-  } catch (error) {
-    console.error("Failed to upsert profile via Prisma:", error);
+async function resolveProfileId(req: Request): Promise<string | null> {
+  const authorization = req.headers.get("authorization");
+  const authSession = parseSupabaseAuthToken(req.headers.get("cookie"));
+
+  let accessToken: string | null = null;
+  if (authorization?.startsWith("Bearer ")) {
+    accessToken = authorization.slice("Bearer ".length).trim() || null;
+  }
+
+  if (!accessToken) {
+    accessToken =
+      authSession?.access_token ?? authSession?.currentSession?.access_token ?? null;
+  }
+
+  let userId = decodeJwtUserId(accessToken);
+
+  if (!userId) {
+    const sessionUserId =
+      authSession?.user?.id ?? authSession?.currentSession?.user?.id ?? null;
+    if (typeof sessionUserId === "string" && sessionUserId.length > 0) {
+      userId = sessionUserId;
+    }
+  }
+
+  if (!userId) {
     return null;
   }
 
-  const confirmedProfile = await prisma.profile.findUnique({
-    where: { id: profileId },
-    select: { id: true },
-  });
+  const ensuredProfileId = await ensureProfileExists(userId);
+  if (!ensuredProfileId) {
+    console.error("Unable to ensure profile for user", userId);
+    return null;
+  }
 
-  return confirmedProfile?.id ?? null;
+  return ensuredProfileId;
 }
 
 export async function POST(req: Request) {
@@ -193,71 +197,7 @@ export async function POST(req: Request) {
 
     
 
-    const authorization = req.headers.get("authorization");
-    const authSession = parseSupabaseAuthToken(req.headers.get("cookie"));
-
-    let accessToken: string | null = null;
-    if (authorization?.startsWith("Bearer ")) {
-      accessToken = authorization.slice("Bearer ".length).trim() || null;
-    }
-
-    if (!accessToken) {
-      accessToken =
-        authSession?.access_token ?? authSession?.currentSession?.access_token ?? null;
-    }
-
-    let resolvedUser: MinimalUser | null = null;
-
-    if (accessToken) {
-      const {
-        data: authUser,
-        error: authError,
-      } = await supabaseAuth.auth.getUser(accessToken);
-
-      if (authError) {
-        console.error("Supabase auth error:", authError);
-      }
-
-      if (authUser?.user) {
-        resolvedUser = {
-          id: authUser.user.id,
-          email: authUser.user.email,
-          user_metadata: authUser.user.user_metadata as Record<string, unknown> | null,
-        };
-      }
-    }
-
-    if (!resolvedUser) {
-      const sessionUser =
-        (authSession?.user as MinimalUser | null) ??
-        (authSession?.currentSession?.user as MinimalUser | null) ??
-        null;
-
-      if (sessionUser?.id) {
-        resolvedUser = {
-          id: sessionUser.id,
-          email: sessionUser.email ?? null,
-          user_metadata: sessionUser.user_metadata ?? null,
-        };
-      }
-    }
-
-    if (!resolvedUser) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const ensuredProfileId = await ensureProfileExists(resolvedUser.id, resolvedUser);
-    if (!ensuredProfileId) {
-      console.error("Profile not found for authenticated user", resolvedUser.id);
-      return NextResponse.json(
-        { error: "Profile not found" },
-        { status: 404 }
-      );
-    }
-    const finalProfileId = ensuredProfileId;
+    const finalProfileId = await resolveProfileId(req);
 
     // 1. 画像をダウンロード
     const imageResponse = await fetch(imageUrl);
@@ -298,12 +238,19 @@ export async function POST(req: Request) {
     const embedding = embeddingResponse.data[0].embedding;
 
     // 5. Supabase経由でデータベースに保存
-    const vectorString = `[${embedding.join(",")}]`;
+    const { error: insertError } = await supabaseService
+      .from("images")
+      .insert({
+        profile_id: finalProfileId ?? null,
+        prompt,
+        image_url: publicUrl,
+        embedding_vector: embedding,
+      });
 
-    await prisma.$executeRaw`
-      INSERT INTO images (profile_id, prompt, image_url, embedding_vector)
-      VALUES (${finalProfileId}::uuid, ${prompt}, ${publicUrl}, ${vectorString}::vector)
-    `;
+    if (insertError) {
+      console.error("Supabase insert error:", insertError);
+      throw new Error("Failed to save image metadata");
+    }
 
 
     return NextResponse.json({
