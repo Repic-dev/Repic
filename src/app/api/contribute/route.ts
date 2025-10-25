@@ -1,15 +1,7 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { PrismaClient } from "@/generated/prisma";
-
-type SupabaseSession = {
-  access_token?: string;
-  user?: {
-    id?: string;
-  };
-};
 
 // 環境変数のチェック
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -33,9 +25,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-
-const supabaseProjectRef = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname.split(".")[0];
-const SUPABASE_AUTH_COOKIE_NAME = `sb-${supabaseProjectRef}-auth-token`;
 
 // OpenAI クライアントの初期化
 const openai = new OpenAI({
@@ -62,6 +51,28 @@ export async function POST(req: Request) {
 
     
 
+    const authorization = req.headers.get("authorization");
+    if (!authorization?.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { error: "Authorization header missing" },
+        { status: 401 }
+      );
+    }
+
+    const accessToken = authorization.replace("Bearer ", "");
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(accessToken);
+
+    if (authError || !user) {
+      console.error("Supabase auth error:", authError);
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     // 1. 画像をダウンロード
     const imageResponse = await fetch(imageUrl);
     if (!imageResponse.ok) {
@@ -69,43 +80,6 @@ export async function POST(req: Request) {
     }
     const imageBlob = await imageResponse.blob();
     const imageBuffer = Buffer.from(await imageBlob.arrayBuffer());
-
-    // 1.5. 認証済みユーザーの取得
-    const cookieStore = await Promise.resolve(cookies());
-
-    let profileId: string | null = null;
-
-    try {
-      const authCookie = cookieStore.get(SUPABASE_AUTH_COOKIE_NAME);
-
-      if (authCookie?.value) {
-        const serializedSession = authCookie.value.startsWith("base64-")
-          ? Buffer.from(
-              authCookie.value.slice("base64-".length),
-              "base64"
-            ).toString("utf-8")
-          : authCookie.value;
-
-        const session: SupabaseSession = JSON.parse(serializedSession);
-
-        profileId = session.user?.id ?? null;
-
-        if (!profileId && session.access_token) {
-          const {
-            data: { user },
-            error: authLookupError,
-          } = await supabase.auth.getUser(session.access_token);
-
-          if (authLookupError) {
-            console.error("Failed to validate Supabase session", authLookupError);
-          } else {
-            profileId = user?.id ?? null;
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Failed to resolve authenticated user from cookie", error);
-    }
 
     // 2. Supabase Storageにアップロード
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
@@ -142,7 +116,7 @@ export async function POST(req: Request) {
 
     await prisma.$executeRaw`
       INSERT INTO images (profile_id, prompt, image_url, embedding_vector)
-      VALUES (${profileId}, ${prompt}, ${publicUrl}, ${vectorString}::vector)
+      VALUES (${user.id}, ${prompt}, ${publicUrl}, ${vectorString}::vector)
     `;
     
 
