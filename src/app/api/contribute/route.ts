@@ -4,8 +4,6 @@ import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { PrismaClient } from "@/generated/prisma";
 
-type CookieStore = Awaited<ReturnType<typeof cookies>>;
-
 type SupabaseSession = {
   access_token?: string;
   user?: {
@@ -38,16 +36,6 @@ const supabase = createClient(
 
 const supabaseProjectRef = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname.split(".")[0];
 const SUPABASE_AUTH_COOKIE_NAME = `sb-${supabaseProjectRef}-auth-token`;
-
-async function getCookieStore(): Promise<CookieStore> {
-  const store = cookies();
-
-  if (typeof (store as PromiseLike<CookieStore>).then === "function") {
-    return store as Promise<CookieStore>;
-  }
-
-  return store as CookieStore;
-}
 
 // OpenAI クライアントの初期化
 const openai = new OpenAI({
@@ -83,19 +71,26 @@ export async function POST(req: Request) {
     const imageBuffer = Buffer.from(await imageBlob.arrayBuffer());
 
     // 1.5. 認証済みユーザーの取得
-    const cookieStore = await getCookieStore();
+    const cookieStore = await Promise.resolve(cookies());
 
     let profileId: string | null = null;
 
     try {
-      const [authCookie] = cookieStore.getAll(SUPABASE_AUTH_COOKIE_NAME);
+      const authCookie = cookieStore.get(SUPABASE_AUTH_COOKIE_NAME);
 
-      if (authCookie?.value?.startsWith("base64-")) {
-        const sessionPayload = authCookie.value.slice("base64-".length);
-        const decoded = Buffer.from(sessionPayload, "base64").toString("utf-8");
-        const session: SupabaseSession = JSON.parse(decoded);
+      if (authCookie?.value) {
+        const serializedSession = authCookie.value.startsWith("base64-")
+          ? Buffer.from(
+              authCookie.value.slice("base64-".length),
+              "base64"
+            ).toString("utf-8")
+          : authCookie.value;
 
-        if (session.access_token) {
+        const session: SupabaseSession = JSON.parse(serializedSession);
+
+        profileId = session.user?.id ?? null;
+
+        if (!profileId && session.access_token) {
           const {
             data: { user },
             error: authLookupError,
@@ -103,12 +98,9 @@ export async function POST(req: Request) {
 
           if (authLookupError) {
             console.error("Failed to validate Supabase session", authLookupError);
-            profileId = session.user?.id ?? null;
           } else {
             profileId = user?.id ?? null;
           }
-        } else {
-          profileId = session.user?.id ?? null;
         }
       }
     } catch (error) {
