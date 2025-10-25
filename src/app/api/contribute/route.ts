@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
-import { PrismaClient, Prisma } from "@/generated/prisma";
 
 type SupabaseAuthSession = {
   access_token?: string;
@@ -64,9 +63,6 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
 if (!process.env.OPENAI_API_KEY) {
   throw new Error("OPENAI_API_KEY is not set");
 }
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set");
-}
 
 // Supabase クライアントの初期化（Service Role Key使用）
 const supabase = createClient(
@@ -79,25 +75,19 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Prisma クライアントの初期化
-const prisma = new PrismaClient({
-  datasources: {
-    db: { url: process.env.DATABASE_URL },
-  },
-});
-
 async function ensureProfileExists(profileId: string): Promise<string | null> {
-  try {
-    const existingProfile = await prisma.profile.findUnique({
-      where: { id: profileId },
-      select: { id: true },
-    });
+  const { data: existingProfile, error: profileQueryError, status } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", profileId)
+    .maybeSingle();
 
-    if (existingProfile?.id) {
-      return existingProfile.id;
-    }
-  } catch (error) {
-    console.error("Failed to query profile via Prisma:", error);
+  if (existingProfile?.id) {
+    return existingProfile.id;
+  }
+
+  if (profileQueryError && status !== 406) {
+    console.error("Failed to query profile via Supabase:", profileQueryError);
   }
 
   const { data: userData, error: adminError } = await supabase.auth.admin.getUserById(
@@ -123,40 +113,33 @@ async function ensureProfileExists(profileId: string): Promise<string | null> {
   const avatarUrl =
     typeof metadata.avatar_url === "string" ? metadata.avatar_url : null;
 
-  try {
-    await prisma.profile.create({
-      data: {
+  const { error: upsertError } = await supabase
+    .from("profiles")
+    .upsert(
+      {
         id: profileId,
-        displayName,
-        avatarUrl,
+        display_name: displayName,
+        avatar_url: avatarUrl,
       },
-    });
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === "P2002") {
-        // Profile already created concurrently, continue.
-      } else if (error.code === "P2003") {
-        console.error("Profile creation failed due to missing auth user:", error);
-        return null;
-      } else {
-        console.error("Profile creation failed:", error);
-      }
-    } else {
-      console.error("Unexpected profile creation error:", error);
-    }
-  }
+      { onConflict: "id" }
+    );
 
-  try {
-    const confirmedProfile = await prisma.profile.findUnique({
-      where: { id: profileId },
-      select: { id: true },
-    });
-
-    return confirmedProfile?.id ?? null;
-  } catch (error) {
-    console.error("Failed to confirm profile existence via Prisma:", error);
+  if (upsertError) {
+    console.error("Failed to upsert profile via Supabase:", upsertError);
     return null;
   }
+
+  const { data: confirmedProfile, error: confirmError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (confirmError && confirmError.code !== "PGRST116") {
+    console.error("Failed to confirm profile via Supabase:", confirmError);
+  }
+
+  return confirmedProfile?.id ?? null;
 }
 
 export async function POST(req: Request) {
@@ -257,13 +240,18 @@ export async function POST(req: Request) {
 
     const embedding = embeddingResponse.data[0].embedding;
 
-    // 5. Prismaでデータベースに保存
-    const vectorString = `[${embedding.join(",")}]`;
+    // 5. Supabase経由でデータベースに保存
+    const { error: insertError } = await supabase.from("images").insert({
+      profile_id: profileId,
+      prompt,
+      image_url: publicUrl,
+      embedding_vector: embedding,
+    });
 
-    await prisma.$executeRaw`
-      INSERT INTO images (profile_id, prompt, image_url, embedding_vector)
-      VALUES (CAST(${profileId} AS uuid), ${prompt}, ${publicUrl}, ${vectorString}::vector)
-    `;
+    if (insertError) {
+      console.error("Supabase insert error:", insertError);
+      throw new Error("Failed to save image metadata");
+    }
     
 
     return NextResponse.json({
