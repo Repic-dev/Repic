@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { supabase, type User, type AuthState } from '@/lib/supabase'
+import { supabase, type User, type AuthState } from '@/libs/supabase'
 
 interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<{ error: any }>

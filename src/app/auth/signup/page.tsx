@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
-import { useToast } from '@/hooks/useToast'
+import { useToast } from '@/usecases/useToast'
 import { Button } from '@/components/ui/button'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
-import { getAuthErrorMessage } from '@/lib/auth-errors'
+import { getAuthErrorMessage } from '@/libs/authErrors'
 
 export default function SignupPage() {
   const [email, setEmail] = useState('')

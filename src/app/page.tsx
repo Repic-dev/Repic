@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { GenerationDialog } from '@/components/ui/generationModal';
 import { Toaster } from '@/components/ui/toast';
-import { useToast } from '@/hooks/useToast';
+import { useToast } from '@/usecases/useToast';
 import type { ImageMeta } from '@/app/api';
 import { Search, ThumbsUp, ThumbsDown, Copy as CopyIcon, Check, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/libs/supabase';
 import { useRouter } from 'next/navigation';
+import { SITUATIONS } from '@/constants';
 
 interface SearchResult {
   id: string;
@@ -78,14 +79,6 @@ export default function Home() {
     fetchUserProfile();
   }, [user]);
 
-  const situations = [
-    '広告バナー',
-    'アイキャッチ画像',
-    'プレゼン資料',
-    'Webサイト',
-    'SNS投稿'
-  ];
-  
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
 
@@ -313,7 +306,7 @@ export default function Home() {
                 <div>
                   <h3 className="text-sm text-gray-500 mb-2">目的から探す</h3>
                   <div className="flex flex-wrap gap-2">
-                    {situations.map((text) => (
+                    {SITUATIONS.map((text) => (
                       <Button
                         key={text}
                         variant="secondary"
