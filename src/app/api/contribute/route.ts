@@ -113,40 +113,6 @@ function decodeJwtUserId(token: string | null): string | null {
   }
 }
 
-async function ensureProfileExists(profileId: string): Promise<string | null> {
-  if (!profileId) {
-    return null;
-  }
-
-  const { data: existingProfile, error: existingError } = await supabaseService
-    .from("profiles")
-    .select("id")
-    .eq("id", profileId)
-    .maybeSingle();
-
-  if (existingError && existingError.code !== "PGRST116") {
-    console.error("Failed to fetch profile:", existingError);
-    return null;
-  }
-
-  if (existingProfile?.id) {
-    return existingProfile.id;
-  }
-
-  const { data: upsertedProfile, error: upsertError } = await supabaseService
-    .from("profiles")
-    .upsert({ id: profileId }, { onConflict: "id" })
-    .select("id")
-    .single();
-
-  if (upsertError) {
-    console.error("Failed to upsert profile:", upsertError);
-    return null;
-  }
-
-  return upsertedProfile?.id ?? profileId;
-}
-
 async function resolveProfileId(req: Request): Promise<string | null> {
   const authorization = req.headers.get("authorization");
   const authSession = parseSupabaseAuthToken(req.headers.get("cookie"));
@@ -175,13 +141,18 @@ async function resolveProfileId(req: Request): Promise<string | null> {
     return null;
   }
 
-  const ensuredProfileId = await ensureProfileExists(userId);
-  if (!ensuredProfileId) {
-    console.error("Unable to ensure profile for user", userId);
+  const { data: profile, error } = await supabaseService
+    .from("profiles")
+    .select("id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error && error.code !== "PGRST116") {
+    console.error("Failed to verify profile existence:", error);
     return null;
   }
 
-  return ensuredProfileId;
+  return profile?.id ?? null;
 }
 
 export async function POST(req: Request) {
