@@ -14,12 +14,7 @@ import type { ImageMeta } from "@/app/api"
 import { useToast } from "@/usecases/useToast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/contexts/AuthContext"
-
-interface GenerationDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  image: ImageMeta | null
-}
+import type { GenerationDialogProps } from "@/types/types"
 
 export function GenerationDialog({ open, onOpenChange, image }: GenerationDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)

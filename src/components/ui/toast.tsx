@@ -1,7 +1,7 @@
 import * as React from "react"
 import { X } from "lucide-react"
 import { cn } from "@/libs/utils"
-import { Toast } from "@/usecases/useToast"
+import type { Toast } from "@/types/types"
 
 interface ToastProps {
   toast: Toast

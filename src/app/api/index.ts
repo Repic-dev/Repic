@@ -1,5 +1,1 @@
-export interface ImageMeta {
-  id: string
-  url: string
-  prompt: string
-}
+export type { ImageMeta } from '@/types/types'

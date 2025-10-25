@@ -12,17 +12,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/libs/supabase';
 import { useRouter } from 'next/navigation';
 import { SITUATIONS } from '@/constants';
+import type { SearchResult } from '@/types/types';
 
-interface SearchResult {
-  id: string;
-  userId?: string | null;
-  imageUrl: string;
-  prompt: string;
-  similarity: number;
-  createdAt?: string;
-  profileId?: string | null;
-  displayName?: string | null;
-}
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
