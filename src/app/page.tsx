@@ -43,9 +43,6 @@ export default function Home() {
   useEffect(() => {
     if (!authLoading) {
       setIsCheckingAuth(false);
-      if (!user) {
-        router.push('/login');
-      }
     }
   }, [user, authLoading, router]);
 
@@ -243,7 +240,7 @@ export default function Home() {
           description: 'ログアウトしました。',
           variant: 'success',
         });
-        router.push('/login');
+        setIsLoggingOut(false);
       }
     } catch (error) {
       toast({
@@ -255,7 +252,7 @@ export default function Home() {
     }
   };
 
-  if (isCheckingAuth || authLoading || !user || isLoggingOut) {
+  if (isCheckingAuth || authLoading || isLoggingOut) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="flex flex-col items-center">
@@ -268,8 +265,7 @@ export default function Home() {
             </div>
           </div>
           <div className="mt-6 text-gray-600 dark:text-gray-300 text-sm font-medium">
-            {isLoggingOut ? 'ログアウト中' : 
-             isCheckingAuth || authLoading ? '認証状態を確認中' : 'ログインが必要です'}
+            {isLoggingOut ? 'ログアウト中' : '認証状態を確認中'}
             <span className="inline-flex w-8 justify-start ml-1">
               <span className="animate-bounce">.</span>
               <span className="animate-bounce [animation-delay:150ms]">.</span>
@@ -360,8 +356,8 @@ export default function Home() {
         </div>
 
         {/* ユーザー情報とログアウト */}
-        {user && userProfile && (
-          <div className="mt-auto p-8 border-t border-gray-800">
+        <div className="mt-auto p-8 border-t border-gray-800">
+          {user && userProfile ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
@@ -383,8 +379,20 @@ export default function Home() {
                 {isLoggingOut ? 'ログアウト中...' : 'ログアウト'}
               </Button>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="flex items-center justify-end">
+              <Button
+                onClick={() => router.push('/login')}
+                variant="outline"
+                size="sm"
+                className="bg-transparent border-white/20 text-white hover:bg-white/20 hover:border-white/40 hover:text-white"
+              >
+                <User className="h-4 w-4 mr-2" />
+                ログイン
+              </Button>
+            </div>
+          )}
+        </div>
       </aside>
 
       {/* 右側コンテンツエリア */}
