@@ -179,7 +179,7 @@ export async function POST(req: Request) {
 
     await prisma.$executeRaw`
       INSERT INTO images (profile_id, prompt, image_url, embedding_vector)
-      VALUES (${profileId}, ${prompt}, ${publicUrl}, ${vectorString}::vector)
+      VALUES (CAST(${profileId} AS uuid), ${prompt}, ${publicUrl}, ${vectorString}::vector)
     `;
     
 
