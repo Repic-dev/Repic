@@ -82,9 +82,28 @@ const openai = new OpenAI({
 // Prisma クライアントの初期化
 const prisma = new PrismaClient({
   datasources: {
-    db: { url: process.env.DATABASE_URL }
-  }
+    db: { url: process.env.DATABASE_URL },
+  },
 });
+
+async function ensureProfileExists(profileId: string): Promise<boolean> {
+  const existing = await prisma.profile.findUnique({ where: { id: profileId } });
+  if (existing) {
+    return true;
+  }
+
+  await prisma.$executeRaw`
+    INSERT INTO profiles (id)
+    SELECT ${profileId}::uuid
+    WHERE EXISTS (
+      SELECT 1 FROM auth.users WHERE id = ${profileId}::uuid
+    )
+    ON CONFLICT (id) DO NOTHING
+  `;
+
+  const created = await prisma.profile.findUnique({ where: { id: profileId } });
+  return Boolean(created);
+}
 
 export async function POST(req: Request) {
   try {
@@ -136,11 +155,14 @@ export async function POST(req: Request) {
       );
     }
 
-    await prisma.profile.upsert({
-      where: { id: profileId },
-      update: {},
-      create: { id: profileId },
-    });
+    const profileReady = await ensureProfileExists(profileId);
+    if (!profileReady) {
+      console.error("Profile not found for authenticated user", profileId);
+      return NextResponse.json(
+        { error: "Profile not found" },
+        { status: 404 }
+      );
+    }
 
     // 1. 画像をダウンロード
     const imageResponse = await fetch(imageUrl);
