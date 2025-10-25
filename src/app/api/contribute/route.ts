@@ -3,6 +3,54 @@ import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { PrismaClient } from "@/generated/prisma";
 
+type SupabaseAuthSession = {
+  access_token?: string;
+  user?: { id?: string } | null;
+  currentSession?: {
+    access_token?: string;
+    user?: { id?: string } | null;
+  } | null;
+};
+
+function parseSupabaseAuthToken(cookieHeader: string | null): SupabaseAuthSession | null {
+  if (!cookieHeader) {
+    return null;
+  }
+
+  const cookies = cookieHeader.split(";");
+  for (const part of cookies) {
+    const [rawKey, ...rawValueParts] = part.split("=");
+    const key = rawKey?.trim();
+    if (!key || !key.startsWith("sb-") || !key.endsWith("-auth-token")) {
+      continue;
+    }
+
+    const rawValue = rawValueParts.join("=").trim();
+    if (!rawValue) {
+      continue;
+    }
+
+    let jsonPayload = rawValue;
+    if (rawValue.startsWith("base64-")) {
+      const base64 = rawValue.slice("base64-".length);
+      try {
+        jsonPayload = Buffer.from(base64, "base64").toString("utf-8");
+      } catch (error) {
+        console.error("Failed to decode Supabase auth cookie:", error);
+        continue;
+      }
+    }
+
+    try {
+      return JSON.parse(jsonPayload) as SupabaseAuthSession;
+    } catch (error) {
+      console.error("Failed to parse Supabase auth cookie:", error);
+    }
+  }
+
+  return null;
+}
+
 // 環境変数のチェック
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
   throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set");
@@ -51,22 +99,37 @@ export async function POST(req: Request) {
 
     
 
-    const authorization = req.headers.get("authorization");
-    if (!authorization?.startsWith("Bearer ")) {
+    const authSession = parseSupabaseAuthToken(req.headers.get("cookie"));
+    const accessToken =
+      authSession?.access_token ?? authSession?.currentSession?.access_token ?? null;
+    let profileId =
+      authSession?.user?.id ?? authSession?.currentSession?.user?.id ?? null;
+
+    if (!accessToken) {
       return NextResponse.json(
-        { error: "Authorization header missing" },
+        { error: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    const accessToken = authorization.replace("Bearer ", "");
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(accessToken);
+    if (!profileId) {
+      const {
+        data,
+        error: authError,
+      } = await supabase.auth.getUser(accessToken);
 
-    if (authError || !user) {
-      console.error("Supabase auth error:", authError);
+      if (authError || !data?.user?.id) {
+        console.error("Supabase auth error:", authError);
+        return NextResponse.json(
+          { error: "Unauthorized" },
+          { status: 401 }
+        );
+      }
+
+      profileId = data.user.id;
+    }
+
+    if (!profileId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -116,7 +179,7 @@ export async function POST(req: Request) {
 
     await prisma.$executeRaw`
       INSERT INTO images (profile_id, prompt, image_url, embedding_vector)
-      VALUES (${user.id}, ${prompt}, ${publicUrl}, ${vectorString}::vector)
+      VALUES (${profileId}, ${prompt}, ${publicUrl}, ${vectorString}::vector)
     `;
     
 
