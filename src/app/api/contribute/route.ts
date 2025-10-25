@@ -87,22 +87,42 @@ const prisma = new PrismaClient({
 });
 
 async function ensureProfileExists(profileId: string): Promise<boolean> {
-  const existing = await prisma.profile.findUnique({ where: { id: profileId } });
-  if (existing) {
+  const { data: existingData, error: fetchError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (fetchError && fetchError.code !== "PGRST116") {
+    console.error("Failed to fetch profile:", fetchError);
+    return false;
+  }
+
+  if (existingData?.id) {
     return true;
   }
 
-  await prisma.$executeRaw`
-    INSERT INTO profiles (id)
-    SELECT ${profileId}::uuid
-    WHERE EXISTS (
-      SELECT 1 FROM auth.users WHERE id = ${profileId}::uuid
-    )
-    ON CONFLICT (id) DO NOTHING
-  `;
+  const { error: insertError } = await supabase
+    .from("profiles")
+    .insert({ id: profileId });
 
-  const created = await prisma.profile.findUnique({ where: { id: profileId } });
-  return Boolean(created);
+  if (insertError && insertError.code !== "23505") {
+    console.error("Failed to insert profile:", insertError);
+    return false;
+  }
+
+  const { data: confirmedProfile, error: confirmError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (confirmError && confirmError.code !== "PGRST116") {
+    console.error("Failed to confirm profile existence:", confirmError);
+    return false;
+  }
+
+  return Boolean(confirmedProfile?.id);
 }
 
 export async function POST(req: Request) {
