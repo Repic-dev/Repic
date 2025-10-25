@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
-import type { CookieOptions } from "@supabase/ssr";
 import OpenAI from "openai";
 import { PrismaClient } from "@/generated/prisma";
+
+type CookieStore = Awaited<ReturnType<typeof cookies>>;
+type CookieSetOptions = Parameters<CookieStore["set"]>[2];
+type CookieDeleteOptions = Parameters<CookieStore["delete"]>[1];
 
 // 環境変数のチェック
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -72,14 +75,14 @@ export async function POST(req: Request) {
           get(name: string) {
             return cookieStore.get(name)?.value;
           },
-          set(name: string, value: string, options?: CookieOptions) {
+          set(name: string, value: string, options?: CookieSetOptions) {
             try {
               cookieStore.set(name, value, options);
             } catch (error) {
               console.warn("Failed to set cookie", error);
             }
           },
-          remove(name: string, options?: CookieOptions) {
+          remove(name: string, options?: CookieDeleteOptions) {
             try {
               cookieStore.delete(name, options);
             } catch (error) {
