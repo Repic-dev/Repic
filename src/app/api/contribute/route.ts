@@ -5,9 +5,17 @@ import { createServerClient } from "@supabase/ssr";
 import OpenAI from "openai";
 import { PrismaClient } from "@/generated/prisma";
 
-type CookieStore = Awaited<ReturnType<typeof cookies>>;
-type CookieSetOptions = Parameters<CookieStore["set"]>[2];
-type CookieDeleteOptions = Parameters<CookieStore["delete"]>[1];
+type CookieOptions = {
+  domain?: string;
+  path?: string;
+  secure?: boolean;
+  httpOnly?: boolean;
+  sameSite?: true | false | "lax" | "strict" | "none";
+  maxAge?: number;
+  expires?: Date | number;
+  priority?: "low" | "medium" | "high";
+  partitioned?: boolean;
+};
 
 // 環境変数のチェック
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -75,16 +83,30 @@ export async function POST(req: Request) {
           get(name: string) {
             return cookieStore.get(name)?.value;
           },
-          set(name: string, value: string, options?: CookieSetOptions) {
+          set(name: string, value: string, options?: CookieOptions) {
             try {
-              cookieStore.set(name, value, options);
+              cookieStore.set({
+                name,
+                value,
+                ...options,
+              });
             } catch (error) {
               console.warn("Failed to set cookie", error);
             }
           },
-          remove(name: string, options?: CookieDeleteOptions) {
+          remove(name: string, options?: CookieOptions) {
             try {
-              cookieStore.delete(name, options);
+              if (!options) {
+                cookieStore.delete(name);
+                return;
+              }
+
+              const { expires: _expires, ...deleteOptions } = options;
+
+              cookieStore.delete({
+                name,
+                ...deleteOptions,
+              });
             } catch (error) {
               console.warn("Failed to remove cookie", error);
             }
