@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { GenerationDialog } from '@/components/ui/generation-dialog';
+import { GenerationDialog } from '@/components/ui/generationModal';
 import { Toaster } from '@/components/ui/toast';
 import { useToast } from '@/hooks/use-toast';
 import type { ImageMeta } from '@/app/api';
