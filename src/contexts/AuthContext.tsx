@@ -1,14 +1,8 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { supabase, type User, type AuthState } from '@/lib/supabase'
-
-interface AuthContextType extends AuthState {
-  signIn: (email: string, password: string) => Promise<{ error: any }>
-  signUp: (email: string, password: string, displayName?: string) => Promise<{ error: any }>
-  signOut: () => Promise<{ error: any }>
-  resetPassword: (email: string) => Promise<{ error: any }>
-}
+import { supabase } from '@/libs/supabase'
+import type { User, AuthState, AuthContextType } from '@/types/types'
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 

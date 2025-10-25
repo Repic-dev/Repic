@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
-import { useToast } from '@/hooks/use-toast'
+import { useToast } from '@/usecases/useToast'
 import { Button } from '@/components/ui/button'
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
-import { getAuthErrorMessage } from '@/lib/auth-errors'
+import { getAuthErrorMessage } from '@/libs/authErrors'
 import { Toaster } from '@/components/ui/toast'
 
 export default function LoginPage() {
@@ -118,7 +118,7 @@ export default function LoginPage() {
         <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
           アカウントをお持ちでない方は{' '}
           <Link
-            href="/signup"
+            href="/auth/signup"
             className="font-medium text-green-600 hover:text-green-500 dark:text-green-400 dark:hover:text-green-300"
           >
             こちらから作成
@@ -179,7 +179,7 @@ export default function LoginPage() {
             <div className="flex items-center justify-between">
               <div className="text-sm">
                 <Link
-                  href="/reset-password"
+                  href="/auth/reset-password"
                   className="font-medium text-green-600 hover:text-green-500 dark:text-green-400 dark:hover:text-green-300"
                 >
                   パスワードを忘れた場合
@@ -214,7 +214,7 @@ export default function LoginPage() {
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 アカウントをお持ちでない方は{' '}
                 <Link
-                  href="/signup"
+                  href="/auth/signup"
                   className="font-medium text-green-600 hover:text-green-500 dark:text-green-400 dark:hover:text-green-300"
                 >
                   新規登録

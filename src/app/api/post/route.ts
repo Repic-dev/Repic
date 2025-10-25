@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
-import { PrismaClient } from "@/generated/prisma";
+import { PrismaClient } from "@prisma/client";
 
 // 環境変数のチェック
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -106,9 +106,9 @@ export async function POST(req: Request) {
       imageUrl: publicUrl,
     });
   } catch (e: any) {
-    console.error("寄稿エラー:", e);
+    console.error("投稿エラー:", e);
     return NextResponse.json(
-      { error: e?.message ?? "contribute failed" },
+      { error: e?.message ?? "post failed" },
       { status: 500 }
     );
   }

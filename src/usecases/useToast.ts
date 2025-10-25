@@ -1,17 +1,5 @@
 import { useState, useCallback } from "react"
-
-export interface Toast {
-  id: string
-  title?: string
-  description?: string
-  variant?: "default" | "destructive" | "success"
-}
-
-export interface ToastProps {
-  title?: string
-  description?: string
-  variant?: "default" | "destructive" | "success"
-}
+import type { Toast, ToastProps } from "@/types/types"
 
 export function useToast() {
   const [toasts, setToasts] = useState<Toast[]>([])

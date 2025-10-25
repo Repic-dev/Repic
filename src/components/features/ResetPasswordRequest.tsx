@@ -4,11 +4,11 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
-import { useToast } from '@/hooks/use-toast'
+import { useToast } from '@/usecases/useToast'
 import { Button } from '@/components/ui/button'
 import { Mail, ArrowLeft, CheckCircle } from 'lucide-react'
 
-export default function ResetPasswordPage() {
+export function ResetPasswordRequest() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
