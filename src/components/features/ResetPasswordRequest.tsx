@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Mail, ArrowLeft, CheckCircle } from 'lucide-react'
 
-export default function ResetPasswordPage() {
+export function ResetPasswordRequest() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
