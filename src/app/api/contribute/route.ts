@@ -3,9 +3,15 @@ import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 type SupabaseAuthSession = {
   access_token?: string | null;
+  refresh_token?: string | null;
+  expires_at?: number | null;
+  token_type?: string | null;
   user?: { id?: string | null } | null;
   currentSession?: {
     access_token?: string | null;
+    refresh_token?: string | null;
+    expires_at?: number | null;
+    token_type?: string | null;
     user?: { id?: string | null } | null;
   } | null;
 };
@@ -56,7 +62,10 @@ function parseSupabaseAuthToken(cookieHeader: string | null): SupabaseAuthSessio
     }
 
     try {
-      return JSON.parse(candidateValue) as SupabaseAuthSession;
+      const parsed = JSON.parse(candidateValue) as SupabaseAuthSession | { access_token?: string | null };
+      if (parsed && typeof parsed === "object") {
+        return parsed as SupabaseAuthSession;
+      }
     } catch (error) {
       console.error("Failed to parse Supabase auth cookie:", error);
     }
@@ -127,7 +136,28 @@ async function resolveProfileId(req: Request): Promise<string | null> {
       authSession?.access_token ?? authSession?.currentSession?.access_token ?? null;
   }
 
-  let userId = decodeJwtUserId(accessToken);
+  let userId: string | null = null;
+
+  if (accessToken) {
+    try {
+      const {
+        data: { user },
+        error,
+      } = await supabaseService.auth.getUser(accessToken);
+
+      if (!error && user?.id) {
+        userId = user.id;
+      } else if (error) {
+        console.error("Supabase access token validation failed:", error);
+      }
+    } catch (error) {
+      console.error("Unexpected Supabase auth.getUser failure:", error);
+    }
+  }
+
+  if (!userId) {
+    userId = decodeJwtUserId(accessToken);
+  }
 
   if (!userId) {
     const sessionUserId =
@@ -141,18 +171,27 @@ async function resolveProfileId(req: Request): Promise<string | null> {
     return null;
   }
 
-  const { data: profile, error } = await supabaseService
-    .from("profiles")
-    .select("id")
-    .eq("id", userId)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabaseService
+      .from<{ id: string }>("profiles")
+      .select("id")
+      .eq("id", userId)
+      .limit(1);
 
-  if (error && error.code !== "PGRST116") {
-    console.error("Failed to verify profile existence:", error);
-    return null;
+    if (error && error.code !== "PGRST116") {
+      console.error("Failed to verify profile existence:", error);
+      return null;
+    }
+
+    const profileRecord = Array.isArray(data) ? data[0] : undefined;
+    if (profileRecord?.id && typeof profileRecord.id === "string") {
+      return profileRecord.id;
+    }
+  } catch (error) {
+    console.error("Unexpected error while resolving profile:", error);
   }
 
-  return profile?.id ?? null;
+  return null;
 }
 
 export async function POST(req: Request) {
