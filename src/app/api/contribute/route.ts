@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
+import type { CookieOptions } from "@supabase/ssr";
 import OpenAI from "openai";
 import { PrismaClient } from "@/generated/prisma";
 
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
     const imageBuffer = Buffer.from(await imageBlob.arrayBuffer());
 
     // 1.5. 認証済みユーザーの取得
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const supabaseAuthClient = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -71,16 +72,16 @@ export async function POST(req: Request) {
           get(name: string) {
             return cookieStore.get(name)?.value;
           },
-          set(name: string, value: string, options?: any) {
+          set(name: string, value: string, options?: CookieOptions) {
             try {
-              cookieStore.set({ name, value, ...options });
+              cookieStore.set(name, value, options);
             } catch (error) {
               console.warn("Failed to set cookie", error);
             }
           },
-          remove(name: string, options?: any) {
+          remove(name: string, options?: CookieOptions) {
             try {
-              cookieStore.set({ name, value: "", ...options, maxAge: 0 });
+              cookieStore.delete(name, options);
             } catch (error) {
               console.warn("Failed to remove cookie", error);
             }
