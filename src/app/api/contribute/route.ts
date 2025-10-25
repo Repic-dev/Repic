@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient, type User } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { PrismaClient } from "@/generated/prisma";
 
@@ -112,7 +112,16 @@ const prisma = new PrismaClient({
   },
 });
 
-async function ensureProfileExists(profileId: string, user: User): Promise<string | null> {
+type MinimalUser = {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+};
+
+async function ensureProfileExists(
+  profileId: string,
+  user: MinimalUser
+): Promise<string | null> {
   const existingProfile = await prisma.profile.findUnique({
     where: { id: profileId },
     select: { id: true },
@@ -185,43 +194,64 @@ export async function POST(req: Request) {
     
 
     const authorization = req.headers.get("authorization");
-    let accessToken: string | null = null;
+    const authSession = parseSupabaseAuthToken(req.headers.get("cookie"));
 
+    let accessToken: string | null = null;
     if (authorization?.startsWith("Bearer ")) {
       accessToken = authorization.slice("Bearer ".length).trim() || null;
     }
 
     if (!accessToken) {
-      const authSession = parseSupabaseAuthToken(req.headers.get("cookie"));
       accessToken =
         authSession?.access_token ?? authSession?.currentSession?.access_token ?? null;
     }
 
-    if (!accessToken) {
+    let resolvedUser: MinimalUser | null = null;
+
+    if (accessToken) {
+      const {
+        data: authUser,
+        error: authError,
+      } = await supabaseAuth.auth.getUser(accessToken);
+
+      if (authError) {
+        console.error("Supabase auth error:", authError);
+      }
+
+      if (authUser?.user) {
+        resolvedUser = {
+          id: authUser.user.id,
+          email: authUser.user.email,
+          user_metadata: authUser.user.user_metadata as Record<string, unknown> | null,
+        };
+      }
+    }
+
+    if (!resolvedUser) {
+      const sessionUser =
+        (authSession?.user as MinimalUser | null) ??
+        (authSession?.currentSession?.user as MinimalUser | null) ??
+        null;
+
+      if (sessionUser?.id) {
+        resolvedUser = {
+          id: sessionUser.id,
+          email: sessionUser.email ?? null,
+          user_metadata: sessionUser.user_metadata ?? null,
+        };
+      }
+    }
+
+    if (!resolvedUser) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    const {
-      data: authUser,
-      error: authError,
-    } = await supabaseAuth.auth.getUser(accessToken);
-
-    if (authError || !authUser?.user) {
-      console.error("Supabase auth error:", authError);
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const profileId = authUser.user.id;
-
-    const ensuredProfileId = await ensureProfileExists(profileId, authUser.user);
+    const ensuredProfileId = await ensureProfileExists(resolvedUser.id, resolvedUser);
     if (!ensuredProfileId) {
-      console.error("Profile not found for authenticated user", profileId);
+      console.error("Profile not found for authenticated user", resolvedUser.id);
       return NextResponse.json(
         { error: "Profile not found" },
         { status: 404 }
