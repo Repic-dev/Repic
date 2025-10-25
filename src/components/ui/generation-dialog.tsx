@@ -90,7 +90,7 @@ export function GenerationDialog({ open, onOpenChange, image }: GenerationDialog
     toast({ title: "フィードバックありがとうございます", description: type === "up" ? "良いプロンプトとして記録しました" : "改善が必要として記録しました" })
   }
 
-  const handleContribute = async () => {
+  const handlePost = async () => {
     setIsContributing(true)
     try {
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')
@@ -109,7 +109,7 @@ export function GenerationDialog({ open, onOpenChange, image }: GenerationDialog
         document.body.removeChild(link)
       }, 100)
 
-      const response = await fetch('/api/contribute', {
+      const response = await fetch('/api/post', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -192,7 +192,7 @@ export function GenerationDialog({ open, onOpenChange, image }: GenerationDialog
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  onClick={handleContribute}
+                  onClick={handlePost}
                   disabled={isContributing}
                   variant="outline"
                 >
