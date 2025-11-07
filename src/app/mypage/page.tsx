@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ImageGallery } from "@/components/image-gallery"
-import { Heart, Eye } from "lucide-react"
+import { Heart } from "lucide-react"
 import Image from "next/image"
 
 export default function UserProfile() {
@@ -36,17 +36,10 @@ export default function UserProfile() {
                 <div className="h-2 w-2 rounded-full bg-primary" />
                 <span className="text-muted-foreground">{"124 作品"}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Heart className="h-4 w-4 text-accent" />
-                <span className="text-muted-foreground">{"2.4K いいね"}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Eye className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">{"15.2K 閲覧"}</span>
-              </div>
+              
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 [&>button:nth-child(2)]:hidden">
               <Button className="bg-primary hover:bg-primary/90">{"フォロー"}</Button>
               <Button variant="outline">{"メッセージ"}</Button>
             </div>
@@ -62,7 +55,7 @@ export default function UserProfile() {
             <TabsTrigger value="liked" className="flex-1 md:flex-none">
               {"いいね"}
             </TabsTrigger>
-            <TabsTrigger value="collections" className="flex-1 md:flex-none">
+            <TabsTrigger value="collections" className="hidden">
               {"コレクション"}
             </TabsTrigger>
           </TabsList>
@@ -75,7 +68,7 @@ export default function UserProfile() {
             <div className="text-center py-16 text-muted-foreground">{"いいねした作品がここに表示されます"}</div>
           </TabsContent>
 
-          <TabsContent value="collections" className="mt-0">
+          <TabsContent value="collections" className="hidden">
             <div className="text-center py-16 text-muted-foreground">{"コレクションがここに表示されます"}</div>
           </TabsContent>
         </Tabs>

@@ -131,13 +131,13 @@ function ImageModal({ image, isOpen, onClose, isLiked, onToggleLike }: ImageModa
   if (!image) return null
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl sm:max-w-[90vw] p-0 gap-0 bg-card border-border">
-        <div className="grid md:grid-cols-[1fr,400px] gap-0">
-          <div className="relative bg-black flex items-center justify-center min-h-[400px] md:min-h-[600px]">
-            <img src={image.url || "/placeholder.svg"} alt={image.prompt} className="w-full h-full object-contain" />
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden p-0 gap-0 bg-card border-border">
+        <div className="grid md:grid-cols-[1fr,360px] gap-0">
+          <div className="relative bg-black flex items-center justify-center min-h-[240px] md:min-h-[400px] max-h-[60vh]">
+            <img src={image.url || "/placeholder.svg"} alt={image.prompt} className="max-h-[60vh] w-auto h-auto object-contain" />
           </div>
 
-          <div className="p-6 space-y-6 overflow-y-auto max-h-[600px]">
+          <div className="p-6 space-y-6 overflow-y-auto max-h-[60vh]">
             <div className="flex items-start justify-between">
               <h3 className="text-lg font-semibold text-balance leading-relaxed">生成画像の詳細</h3>
               <Button
@@ -203,4 +203,3 @@ function ImageModal({ image, isOpen, onClose, isLiked, onToggleLike }: ImageModa
     </Dialog>
   )
 }
-
