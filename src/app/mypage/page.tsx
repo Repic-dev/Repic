@@ -384,7 +384,22 @@ function UserProfileContent() {
           </TabsList>
 
           <TabsContent value='gallery' className='mt-0'>
-            <ImageGallery userId={targetUserId} />
+            <ImageGallery 
+              userId={targetUserId} 
+              onImageDeleted={async () => {
+                // 画像カウントを再取得
+                if (targetUserId) {
+                  const { count, error: countError } = await supabase
+                    .from('images')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('profile_id', targetUserId);
+
+                  if (!countError) {
+                    setImageCount(count || 0);
+                  }
+                }
+              }}
+            />
           </TabsContent>
 
           <TabsContent value='liked' className='mt-0'>
