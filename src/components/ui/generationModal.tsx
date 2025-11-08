@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Download, Copy, ThumbsUp, ThumbsDown } from "lucide-react"
-import type { ImageMeta } from "@/app/api"
 import { useToast } from "@/usecases/useToast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/contexts/AuthContext"
