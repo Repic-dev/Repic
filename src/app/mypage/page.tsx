@@ -133,6 +133,31 @@ function UserProfileContent() {
     return 'U';
   };
 
+  // ユーザーIDに基づいて一意のグラデーション色を生成
+  const getAvatarGradient = (userId: string | undefined) => {
+    if (!userId) {
+      return 'from-blue-500 to-purple-600';
+    }
+    
+    // ユーザーIDの文字列から数値を生成して色を決定
+    const hash = userId.split('').reduce((acc, char) => {
+      return char.charCodeAt(0) + ((acc << 5) - acc);
+    }, 0);
+    
+    const colors = [
+      'from-blue-500 to-cyan-500',
+      'from-purple-500 to-pink-500',
+      'from-orange-500 to-red-500',
+      'from-green-500 to-emerald-500',
+      'from-indigo-500 to-blue-500',
+      'from-pink-500 to-rose-500',
+      'from-teal-500 to-cyan-500',
+      'from-amber-500 to-orange-500',
+    ];
+    
+    return colors[Math.abs(hash) % colors.length];
+  };
+
   const getDisplayName = () => {
     if (profile?.display_name) {
       return profile.display_name;
@@ -275,8 +300,20 @@ function UserProfileContent() {
         <div className='flex flex-col md:flex-row gap-8 items-start mb-8'>
           <Avatar className='h-24 w-24 md:h-32 md:w-32 border-2 border-primary/20'>
             <AvatarImage src={profile?.avatar_url || undefined} />
-            <AvatarFallback className='text-2xl bg-primary/10 text-primary'>
-              {getAvatarInitials()}
+            <AvatarFallback className={`bg-gradient-to-br ${getAvatarGradient(targetUserId)} text-white`}>
+              <svg
+                xmlns='http://www.w3.org/2000/svg'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='currentColor'
+                strokeWidth='2'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                className='h-12 w-12 md:h-16 md:w-16 opacity-90'
+              >
+                <path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' />
+                <circle cx='12' cy='7' r='4' />
+              </svg>
             </AvatarFallback>
           </Avatar>
 
@@ -388,9 +425,20 @@ function UserProfileContent() {
                 >
                   <Avatar className='h-10 w-10'>
                     <AvatarImage src={followedUser.avatar_url || undefined} />
-                    <AvatarFallback className='bg-primary/10 text-primary'>
-                      {followedUser.display_name?.slice(0, 2).toUpperCase() ||
-                        'U'}
+                    <AvatarFallback className={`bg-gradient-to-br ${getAvatarGradient(followedUser.id)} text-white`}>
+                      <svg
+                        xmlns='http://www.w3.org/2000/svg'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='2'
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        className='h-5 w-5 opacity-90'
+                      >
+                        <path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2' />
+                        <circle cx='12' cy='7' r='4' />
+                      </svg>
                     </AvatarFallback>
                   </Avatar>
                   <div className='flex-1'>
