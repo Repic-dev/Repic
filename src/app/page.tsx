@@ -302,6 +302,16 @@ export default function Home() {
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         image={generatedImage}
+        onImageUpdate={(newImage) => {
+          setGeneratedImage(newImage)
+          const newResult: SearchResult = {
+            id: newImage.id,
+            imageUrl: newImage.url,
+            prompt: newImage.prompt,
+            similarity: 1.0,
+          }
+          setSearchResults(prev => [newResult, ...prev])
+        }}
       />
 
       <Toaster toasts={toasts} onDismiss={dismiss} />

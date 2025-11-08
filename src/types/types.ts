@@ -49,6 +49,7 @@ export interface GenerationDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   image: ImageMeta | null
+  onImageUpdate?: (image: ImageMeta) => void
 }
 
 // ===== アプリケーション関連 =====
