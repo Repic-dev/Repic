@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -9,18 +9,36 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Download, Copy, ThumbsUp, ThumbsDown } from "lucide-react"
-import type { ImageMeta } from "@/app/api"
+import { Download, Copy, ThumbsUp, ThumbsDown, RefreshCw } from "lucide-react"
 import { useToast } from "@/usecases/useToast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/contexts/AuthContext"
-import type { GenerationDialogProps } from "@/types/types"
+import type { GenerationDialogProps, ImageMeta } from "@/types/types"
 
-export function GenerationDialog({ open, onOpenChange, image }: GenerationDialogProps) {
+export function GenerationDialog({ open, onOpenChange, image, onImageUpdate }: GenerationDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isContributing, setIsContributing] = useState(false)
+  const [isRegenerating, setIsRegenerating] = useState(false)
+  const [editedPrompt, setEditedPrompt] = useState("")
+  const [promptHistory, setPromptHistory] = useState<Array<{ prompt: string; timestamp: string }>>([])
   const { toast } = useToast()
   const { user } = useAuth()
+
+  useEffect(() => {
+    if (image) {
+      setEditedPrompt(image.prompt)
+      // 既存の履歴がある場合はそれを使用、ない場合は初期プロンプトを履歴に追加
+      if (image.promptHistory && image.promptHistory.length > 0) {
+        setPromptHistory(image.promptHistory)
+      } else {
+        // 初期プロンプトを履歴の最初の項目として追加
+        setPromptHistory([{
+          prompt: image.prompt,
+          timestamp: new Date().toISOString()
+        }])
+      }
+    }
+  }, [image])
 
   if (!image) return null
 
@@ -74,7 +92,7 @@ export function GenerationDialog({ open, onOpenChange, image }: GenerationDialog
 
   const handleCopyPrompt = async () => {
     try {
-      await navigator.clipboard.writeText(image.prompt || "")
+      await navigator.clipboard.writeText(editedPrompt || "")
       toast({ title: "コピーしました", description: "プロンプトをクリップボードにコピーしました", variant: "success" })
     } catch (e) {
       toast({ title: "コピーに失敗", description: "クリップボードへのアクセスに失敗しました", variant: "destructive" })
@@ -83,6 +101,75 @@ export function GenerationDialog({ open, onOpenChange, image }: GenerationDialog
 
   const handleFeedback = (type: "up" | "down") => {
     toast({ title: "フィードバックありがとうございます", description: type === "up" ? "良いプロンプトとして記録しました" : "改善が必要として記録しました" })
+  }
+
+  const handleRegenerate = async () => {
+    if (!editedPrompt.trim()) {
+      toast({
+        title: "エラー",
+        description: "プロンプトを入力してください",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsRegenerating(true)
+    try {
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt: editedPrompt }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const imageId = Date.now().toString()
+        
+        // 再生成に使ったプロンプトを履歴に追加（実際に生成に使われたプロンプト）
+        const newHistoryItem = {
+          prompt: editedPrompt,
+          timestamp: new Date().toISOString()
+        }
+        const updatedHistory = [...promptHistory, newHistoryItem]
+        
+        const newImage: ImageMeta = {
+          id: imageId,
+          url: data.imageUrl,
+          prompt: editedPrompt,
+          promptHistory: updatedHistory,
+        }
+        
+        setPromptHistory(updatedHistory)
+        
+        if (onImageUpdate) {
+          onImageUpdate(newImage)
+        }
+        
+        toast({
+          title: "再生成完了",
+          description: "新しい画像が生成されました",
+          variant: "success",
+        })
+      } else {
+        const errorData = await response.json()
+        toast({
+          title: "エラー",
+          description: errorData.error || "画像の生成に失敗しました",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('再生成エラー:', error)
+      toast({
+        title: "エラー",
+        description: "画像生成中にエラーが発生しました",
+        variant: "destructive",
+      })
+    } finally {
+      setIsRegenerating(false)
+    }
   }
 
   const handlePost = async () => {
@@ -104,6 +191,8 @@ export function GenerationDialog({ open, onOpenChange, image }: GenerationDialog
         document.body.removeChild(link)
       }, 100)
 
+      // 投稿時は既存の履歴をそのまま使用（実際に生成に使われたプロンプトだけが含まれている）
+      // 現在表示されている画像のプロンプトを使用（実際に生成に使われたプロンプト）
       const response = await fetch('/api/post', {
         method: 'POST',
         headers: {
@@ -111,7 +200,8 @@ export function GenerationDialog({ open, onOpenChange, image }: GenerationDialog
         },
         body: JSON.stringify({
           imageUrl: image.url,
-          prompt: image.prompt,
+          prompt: image.prompt, // 実際に生成に使われたプロンプトを使用
+          promptHistory: promptHistory, // 既存の履歴をそのまま使用
           profileId: user?.id || null,
         }),
       })
@@ -149,8 +239,8 @@ export function GenerationDialog({ open, onOpenChange, image }: GenerationDialog
           <DialogTitle>生成完了</DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="aspect-video relative bg-muted rounded-lg overflow-hidden">
+        <div className="flex flex-col gap-4">
+          <div className="aspect-video relative bg-muted rounded-lg overflow-hidden mx-auto max-w-3xl w-full">
             <img 
               src={image.url || "/placeholder.svg"} 
               alt="Generated" 
@@ -172,8 +262,22 @@ export function GenerationDialog({ open, onOpenChange, image }: GenerationDialog
                 </Button>
               </div>
             </div>
-            <div className="max-h-[80vh] overflow-auto p-3 border rounded-md bg-muted/30">
-              <p className="text-sm whitespace-pre-wrap break-words">{image.prompt}</p>
+            <div className="flex flex-col gap-2">
+              <textarea
+                value={editedPrompt}
+                onChange={(e) => setEditedPrompt(e.target.value)}
+                className="min-h-[100px] p-3 border rounded-md bg-white text-sm whitespace-pre-wrap break-words resize-y"
+                placeholder="プロンプトを編集してください"
+              />
+              <Button
+                onClick={handleRegenerate}
+                disabled={isRegenerating || !editedPrompt.trim()}
+                variant="outline"
+                className="w-full"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRegenerating ? 'animate-spin' : ''}`} />
+                {isRegenerating ? '再生成中...' : 'このプロンプトで再生成'}
+              </Button>
             </div>
           </div>
         </div>

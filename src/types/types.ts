@@ -49,6 +49,7 @@ export interface GenerationDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   image: ImageMeta | null
+  onImageUpdate?: (image: ImageMeta) => void
 }
 
 // ===== アプリケーション関連 =====
@@ -57,14 +58,21 @@ export interface SearchResult {
   userId?: string | null
   imageUrl: string
   prompt: string
+  promptHistory?: PromptHistoryItem[] | null
   similarity: number
   createdAt?: string
   profileId?: string | null
   displayName?: string | null
 }
 
+export interface PromptHistoryItem {
+  prompt: string
+  timestamp: string
+}
+
 export interface ImageMeta {
   id: string
   url: string
   prompt: string
+  promptHistory?: PromptHistoryItem[]
 }
