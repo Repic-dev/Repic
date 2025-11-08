@@ -238,33 +238,35 @@ export function ImageGallery({ userId, onImageDeleted }: ImageGalleryProps) {
 
                   <div className='flex items-center justify-between gap-2'>
                     <div className='flex items-center gap-2'>
-                      <Button
-                        size='sm'
-                        variant='ghost'
-                        className={`h-8 px-3 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
-                          likedImages.has(image.id)
-                            ? 'text-accent hover:text-accent'
-                            : 'text-white hover:text-accent'
-                        }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleLike(image.id);
-                        }}
-                        aria-label={
-                          likedImages.has(image.id)
-                            ? 'いいねを取り消す'
-                            : 'いいねする'
-                        }
-                      >
-                        <Heart
-                          className={`h-4 w-4 mr-1 ${
-                            likedImages.has(image.id) ? 'fill-current' : ''
+                      {!isOwnProfile && (
+                        <Button
+                          size='sm'
+                          variant='ghost'
+                          className={`h-8 px-3 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+                            likedImages.has(image.id)
+                              ? 'text-accent hover:text-accent'
+                              : 'text-white hover:text-accent'
                           }`}
-                        />
-                        <span className='text-xs'>
-                          {image.likes + (likedImages.has(image.id) ? 1 : 0)}
-                        </span>
-                      </Button>
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleLike(image.id);
+                          }}
+                          aria-label={
+                            likedImages.has(image.id)
+                              ? 'いいねを取り消す'
+                              : 'いいねする'
+                          }
+                        >
+                          <Heart
+                            className={`h-4 w-4 mr-1 ${
+                              likedImages.has(image.id) ? 'fill-current' : ''
+                            }`}
+                          />
+                          <span className='text-xs'>
+                            {image.likes + (likedImages.has(image.id) ? 1 : 0)}
+                          </span>
+                        </Button>
+                      )}
 
                       <Button
                         size='sm'
@@ -325,6 +327,7 @@ export function ImageGallery({ userId, onImageDeleted }: ImageGalleryProps) {
         onDownload={handleDownload}
         onDelete={isOwnProfile ? (image) => handleDeleteClick(image) : undefined}
         isDeleting={selectedImage ? deletingImageId === selectedImage.id : false}
+        showLikeButton={!isOwnProfile}
       />
 
       {/* 削除確認ダイアログ */}
@@ -370,6 +373,7 @@ interface ImageModalProps {
   onDownload: (imageUrl: string, prompt: string) => void;
   onDelete?: (image: GeneratedImage) => void;
   isDeleting?: boolean;
+  showLikeButton?: boolean;
 }
 
 function ImageModal({
@@ -381,6 +385,7 @@ function ImageModal({
   onDownload,
   onDelete,
   isDeleting = false,
+  showLikeButton = true,
 }: ImageModalProps) {
   const [copiedHistoryIndex, setCopiedHistoryIndex] = useState<number | null>(null);
   const { toast } = useToast();
@@ -487,23 +492,25 @@ function ImageModal({
               </div>
 
               <div className='flex items-center gap-2'>
-                <Button
-                  variant={isLiked ? 'default' : 'outline'}
-                  className='flex-1'
-                  onClick={onToggleLike}
-                  aria-label={isLiked ? 'いいねを取り消す' : 'いいねする'}
-                >
-                  <Heart
-                    className={`h-4 w-4 mr-2 ${isLiked ? 'fill-current' : ''}`}
-                  />
-                  {isLiked ? 'いいね済み' : 'いいね'}
-                  <span className='ml-2'>
-                    ({image.likes + (isLiked ? 1 : 0)})
-                  </span>
-                </Button>
+                {showLikeButton && (
+                  <Button
+                    variant={isLiked ? 'default' : 'outline'}
+                    className='flex-1'
+                    onClick={onToggleLike}
+                    aria-label={isLiked ? 'いいねを取り消す' : 'いいねする'}
+                  >
+                    <Heart
+                      className={`h-4 w-4 mr-2 ${isLiked ? 'fill-current' : ''}`}
+                    />
+                    {isLiked ? 'いいね済み' : 'いいね'}
+                    <span className='ml-2'>
+                      ({image.likes + (isLiked ? 1 : 0)})
+                    </span>
+                  </Button>
+                )}
                 <Button
                   variant='outline'
-                  className='flex-1 bg-transparent'
+                  className={`${showLikeButton ? 'flex-1' : onDelete ? 'flex-1' : 'w-full'} bg-transparent`}
                   aria-label='画像をダウンロード'
                   onClick={() => onDownload(image.url, image.prompt)}
                 >
@@ -513,7 +520,7 @@ function ImageModal({
                 {onDelete && (
                   <Button
                     variant='destructive'
-                    className='flex-1'
+                    className={`${showLikeButton ? 'flex-1' : 'flex-1'}`}
                     aria-label='画像を削除'
                     onClick={() => onDelete(image)}
                     disabled={isDeleting}
