@@ -4,14 +4,16 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Heart, Download, Maximize2, X, Calendar } from 'lucide-react';
+import { Heart, Download, Maximize2, X, Calendar, Copy, Check } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/libs/supabase';
+import { useToast } from '@/usecases/useToast';
 
 interface GeneratedImage {
   id: string;
   url: string;
   prompt: string;
+  promptHistory?: Array<{ prompt: string; timestamp: string }> | null;
   likes: number;
   createdAt: string;
 }
@@ -42,7 +44,7 @@ export function ImageGallery({ userId }: ImageGalleryProps) {
       try {
         const { data, error } = await supabase
           .from('images')
-          .select('id, image_url, prompt, created_at')
+          .select('id, image_url, prompt, prompt_history, created_at')
           .eq('profile_id', targetUserId)
           .order('created_at', { ascending: false });
 
@@ -54,6 +56,7 @@ export function ImageGallery({ userId }: ImageGalleryProps) {
             id: img.id,
             url: img.image_url,
             prompt: img.prompt,
+            promptHistory: img.prompt_history || null,
             likes: 0, // いいね機能は後で実装可能
             createdAt: img.created_at,
           }));
@@ -246,6 +249,9 @@ function ImageModal({
   onToggleLike,
   onDownload,
 }: ImageModalProps) {
+  const [copiedHistoryIndex, setCopiedHistoryIndex] = useState<number | null>(null);
+  const { toast } = useToast();
+
   if (!image) return null;
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -278,10 +284,67 @@ function ImageModal({
             <div className='space-y-4'>
               <div>
                 <label className='text-sm font-medium text-muted-foreground'>
-                  プロンプト
+                  生成プロンプト
                 </label>
                 <p className='mt-2 text-sm leading-relaxed'>{image.prompt}</p>
               </div>
+
+              {image.promptHistory && image.promptHistory.length > 0 && (
+                <div>
+                  <label className='text-sm font-medium text-muted-foreground mb-2 block'>
+                    プロンプト履歴
+                  </label>
+                  <div className='mt-2 space-y-2 max-h-48 overflow-y-auto'>
+                    {image.promptHistory.map((item, index) => (
+                      <div
+                        key={index}
+                        className='p-3 bg-muted/30 rounded-md border border-border'
+                      >
+                        <div className='flex items-center justify-between mb-1'>
+                          <span className='text-xs text-muted-foreground'>
+                            {index + 1}回目
+                          </span>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className={`h-6 w-6 ${
+                              copiedHistoryIndex === index
+                                ? 'border-green-500 bg-green-50 text-green-600 dark:bg-green-900/20'
+                                : ''
+                            }`}
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(item.prompt);
+                                setCopiedHistoryIndex(index);
+                                toast({
+                                  title: 'コピーしました',
+                                  description: 'プロンプトをクリップボードにコピーしました',
+                                  variant: 'success',
+                                });
+                                setTimeout(() => setCopiedHistoryIndex(null), 2000);
+                              } catch (e) {
+                                toast({
+                                  title: 'コピーに失敗',
+                                  description: 'クリップボードへのアクセスに失敗しました',
+                                  variant: 'destructive',
+                                });
+                              }
+                            }}
+                            aria-label='プロンプトをコピー'
+                          >
+                            {copiedHistoryIndex === index ? (
+                              <Check className='h-3 w-3' />
+                            ) : (
+                              <Copy className='h-3 w-3' />
+                            )}
+                          </Button>
+                        </div>
+                        <p className='text-sm leading-relaxed'>{item.prompt}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className='flex items-center gap-2 text-sm text-muted-foreground'>
                 <Calendar className='h-4 w-4' />

@@ -13,6 +13,7 @@ interface SearchResultsProps {
   onCopy: (result: SearchResult) => void;
   onLike: (result: SearchResult) => void;
   onDislike: (result: SearchResult) => void;
+  onImageClick?: (result: SearchResult) => void;
 }
 
 export function SearchResults({
@@ -22,6 +23,7 @@ export function SearchResults({
   onCopy,
   onLike,
   onDislike,
+  onImageClick,
 }: SearchResultsProps) {
   return (
     <div className='grid grid-cols-1 lg:grid-cols-2 gap-8'>
@@ -31,7 +33,10 @@ export function SearchResults({
           className='group bg-white dark:bg-gray-800 rounded-3xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 border border-gray-100 dark:border-gray-700'
         >
           {/* 画像エリア */}
-          <div className='relative h-64 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 overflow-hidden'>
+          <div 
+            className='relative h-64 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 overflow-hidden cursor-pointer'
+            onClick={() => onImageClick && onImageClick(result)}
+          >
             <Image
               src={result.imageUrl}
               alt='検索結果の画像'
@@ -43,7 +48,10 @@ export function SearchResults({
 
             {/* ダウンロードボタン */}
             <button
-              onClick={() => onDownload(result)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDownload(result);
+              }}
               className='absolute bottom-4 right-4 w-10 h-10 bg-white/90 hover:bg-white rounded-full flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110 backdrop-blur-sm'
             >
               <svg width='20' height='20' viewBox='0 0 20 20' fill='none'>

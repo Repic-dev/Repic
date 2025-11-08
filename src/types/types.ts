@@ -58,6 +58,7 @@ export interface SearchResult {
   userId?: string | null
   imageUrl: string
   prompt: string
+  promptHistory?: PromptHistoryItem[] | null
   similarity: number
   createdAt?: string
   profileId?: string | null

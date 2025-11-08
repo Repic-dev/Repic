@@ -14,6 +14,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/libs/supabase';
 import { useRouter } from 'next/navigation';
 import type { SearchResult } from '@/types/types';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Download, X, Copy, Check } from 'lucide-react';
 
 
 export default function Home() {
@@ -25,6 +28,9 @@ export default function Home() {
   const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const [generatedImage, setGeneratedImage] = useState<ImageMeta | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedSearchResult, setSelectedSearchResult] = useState<SearchResult | null>(null);
+  const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
+  const [copiedHistoryIndex, setCopiedHistoryIndex] = useState<number | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [userProfile, setUserProfile] = useState<{ display_name: string } | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -287,6 +293,7 @@ export default function Home() {
               onCopy={handleCopy}
               onLike={handleLike}
               onDislike={handleDislike}
+              onImageClick={setSelectedSearchResult}
             />
           )}
 
@@ -317,6 +324,172 @@ export default function Home() {
           setSearchResults(prev => [newResult, ...prev])
         }}
       />
+
+      {/* 検索結果用モーダル */}
+      {selectedSearchResult && (
+        <Dialog open={!!selectedSearchResult} onOpenChange={() => setSelectedSearchResult(null)}>
+          <DialogContent className='max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0 bg-card border-border'>
+            <div className='grid md:grid-cols-[1fr,360px] gap-0'>
+              <div className='relative bg-black flex items-center justify-center min-h-[240px] md:min-h-[400px]'>
+                <img
+                  src={selectedSearchResult.imageUrl || '/placeholder.svg'}
+                  alt={selectedSearchResult.prompt}
+                  className='max-h-[70vh] w-auto h-auto object-contain'
+                />
+              </div>
+
+              <div className='p-6 space-y-6'>
+                <div className='flex items-start justify-between'>
+                  <DialogTitle className='text-lg font-semibold text-balance leading-relaxed'>
+                    詳細
+                  </DialogTitle>
+                  <Button
+                    variant='ghost'
+                    size='icon'
+                    onClick={() => setSelectedSearchResult(null)}
+                    className='h-8 w-8 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+                    aria-label='閉じる'
+                  >
+                    <X className='h-4 w-4' />
+                  </Button>
+                </div>
+
+                <div className='space-y-4'>
+                  <div>
+                    <div className='flex items-center justify-between mb-2'>
+                      <label className='text-sm font-medium text-muted-foreground'>
+                        プロンプト
+                      </label>
+                      <Button
+                        variant='outline'
+                        size='icon'
+                        className={`h-8 w-8 ${
+                          copiedPromptId === selectedSearchResult.id
+                            ? 'border-green-500 bg-green-50 text-green-600 dark:bg-green-900/20'
+                            : ''
+                        }`}
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(selectedSearchResult.prompt);
+                            setCopiedPromptId(selectedSearchResult.id);
+                            toast({
+                              title: 'コピーしました',
+                              description: 'プロンプトをクリップボードにコピーしました',
+                              variant: 'success',
+                            });
+                            setTimeout(() => setCopiedPromptId(null), 2000);
+                          } catch (e) {
+                            toast({
+                              title: 'コピーに失敗',
+                              description: 'クリップボードへのアクセスに失敗しました',
+                              variant: 'destructive',
+                            });
+                          }
+                        }}
+                        aria-label='プロンプトをコピー'
+                      >
+                        {copiedPromptId === selectedSearchResult.id ? (
+                          <Check className='h-4 w-4' />
+                        ) : (
+                          <Copy className='h-4 w-4' />
+                        )}
+                      </Button>
+                    </div>
+                    <p className='mt-2 text-sm leading-relaxed'>{selectedSearchResult.prompt}</p>
+                  </div>
+
+                  {selectedSearchResult.promptHistory && selectedSearchResult.promptHistory.length > 0 && (
+                    <div>
+                      <label className='text-sm font-medium text-muted-foreground mb-2 block'>
+                        プロンプト履歴
+                      </label>
+                      <div className='mt-2 space-y-2 max-h-48 overflow-y-auto'>
+                        {selectedSearchResult.promptHistory.map((item, index) => (
+                          <div
+                            key={index}
+                            className='p-3 bg-muted/30 rounded-md border border-border'
+                          >
+                            <div className='flex items-center justify-between mb-1'>
+                              <span className='text-xs text-muted-foreground'>
+                                {index + 1}回目
+                              </span>
+                              <Button
+                                variant='ghost'
+                                size='icon'
+                                className={`h-6 w-6 ${
+                                  copiedHistoryIndex === index
+                                    ? 'border-green-500 bg-green-50 text-green-600 dark:bg-green-900/20'
+                                    : ''
+                                }`}
+                                onClick={async () => {
+                                  try {
+                                    await navigator.clipboard.writeText(item.prompt);
+                                    setCopiedHistoryIndex(index);
+                                    toast({
+                                      title: 'コピーしました',
+                                      description: 'プロンプトをクリップボードにコピーしました',
+                                      variant: 'success',
+                                    });
+                                    setTimeout(() => setCopiedHistoryIndex(null), 2000);
+                                  } catch (e) {
+                                    toast({
+                                      title: 'コピーに失敗',
+                                      description: 'クリップボードへのアクセスに失敗しました',
+                                      variant: 'destructive',
+                                    });
+                                  }
+                                }}
+                                aria-label='プロンプトをコピー'
+                              >
+                                {copiedHistoryIndex === index ? (
+                                  <Check className='h-3 w-3' />
+                                ) : (
+                                  <Copy className='h-3 w-3' />
+                                )}
+                              </Button>
+                            </div>
+                            <p className='text-sm leading-relaxed'>{item.prompt}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className='flex items-center gap-2'>
+                    <Button
+                      variant='outline'
+                      className='flex-1 bg-transparent'
+                      aria-label='画像をダウンロード'
+                      onClick={() => handleDownload(selectedSearchResult)}
+                    >
+                      <Download className='h-4 w-4 mr-2' />
+                      ダウンロード
+                    </Button>
+                  </div>
+                </div>
+
+                <div className='pt-4 border-t border-border space-y-3'>
+                  <h4 className='text-sm font-medium'>生成情報</h4>
+                  <div className='space-y-2 text-sm'>
+                    <div className='flex justify-between'>
+                      <span className='text-muted-foreground'>モデル</span>
+                      <span>DALL-E 3</span>
+                    </div>
+                    <div className='flex justify-between'>
+                      <span className='text-muted-foreground'>サイズ</span>
+                      <span>1024 × 1024</span>
+                    </div>
+                    <div className='flex justify-between'>
+                      <span className='text-muted-foreground'>スタイル</span>
+                      <span>Vivid</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Toaster toasts={toasts} onDismiss={dismiss} />
     </div>

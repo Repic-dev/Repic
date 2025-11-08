@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
         id: string;
         profile_id: string | null;
         prompt: string;
+        prompt_history: any;
         image_url: string;
         created_at: Date;
         similarity: number;
@@ -67,6 +68,7 @@ export async function POST(request: NextRequest) {
         i.id,
         i.profile_id,
         i.prompt,
+        i.prompt_history,
         i.image_url,
         i.created_at,
         1 - (i.embedding_vector <=> ${vectorString}::vector) as similarity,
@@ -87,6 +89,7 @@ export async function POST(request: NextRequest) {
       profileId: row.profile_id,
       displayName: row.display_name,
       prompt: row.prompt,
+      promptHistory: row.prompt_history || null,
       imageUrl: row.image_url,
       createdAt: row.created_at.toISOString(),
       similarity: Number(row.similarity),
