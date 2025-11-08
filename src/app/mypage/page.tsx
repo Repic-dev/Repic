@@ -16,6 +16,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/libs/supabase';
+import { useToast } from '@/usecases/useToast';
 
 interface ProfileData {
   display_name: string | null;
@@ -39,6 +40,10 @@ function UserProfileContent() {
   const [isFollowListOpen, setIsFollowListOpen] = useState(false);
   const [followedUsers, setFollowedUsers] = useState<FollowedUser[]>([]);
   const [loadingFollows, setLoadingFollows] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [isTogglingFollow, setIsTogglingFollow] = useState(false);
+  const { toast } = useToast();
 
   const targetUserId = userIdParam || user?.id;
 
@@ -80,6 +85,9 @@ function UserProfileContent() {
         } else {
           setImageCount(count || 0);
         }
+
+        // フォロー状態とフォロワー数を取得
+        await fetchFollowStatus();
       } catch (error) {
         console.error('データ取得エラー:', error);
       } finally {
@@ -91,6 +99,32 @@ function UserProfileContent() {
       fetchProfile();
     }
   }, [targetUserId, authLoading]);
+
+  const fetchFollowStatus = async () => {
+    if (!targetUserId) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch(
+        `/api/follow/status?userId=${targetUserId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setIsFollowing(data.isFollowing);
+        setFollowerCount(data.followerCount);
+      }
+    } catch (error) {
+      console.error('フォロー状態取得エラー:', error);
+    }
+  };
 
   const getAvatarInitials = () => {
     if (profile?.display_name) {
@@ -113,20 +147,89 @@ function UserProfileContent() {
 
     setLoadingFollows(true);
     try {
-      // フォローテーブルが存在する場合の実装
-      // 現時点では空の配列を返す（後で実装可能）
-      // const { data, error } = await supabase
-      //   .from('follows')
-      //   .select('followed_id, profiles!follows_followed_id_fkey(id, display_name, avatar_url)')
-      //   .eq('follower_id', user.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setFollowedUsers([]);
+        return;
+      }
 
-      // 仮の実装：後でフォローテーブルが追加されたら実装
-      setFollowedUsers([]);
+      const response = await fetch('/api/follow/list', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFollowedUsers(data.users || []);
+      } else {
+        console.error('フォロー一覧取得エラー');
+        setFollowedUsers([]);
+      }
     } catch (error) {
       console.error('フォロー一覧取得エラー:', error);
       setFollowedUsers([]);
     } finally {
       setLoadingFollows(false);
+    }
+  };
+
+  const handleToggleFollow = async () => {
+    if (!user || !targetUserId || isTogglingFollow) return;
+    if (targetUserId === user.id) return;
+
+    setIsTogglingFollow(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({
+          title: 'エラー',
+          description: 'ログインが必要です',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const action = isFollowing ? 'unfollow' : 'follow';
+      const response = await fetch('/api/follow', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          followingId: targetUserId,
+          action,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setIsFollowing(!isFollowing);
+        // フォロワー数を更新
+        await fetchFollowStatus();
+        toast({
+          title: '成功',
+          description: data.message,
+          variant: 'success',
+        });
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: 'エラー',
+          description: errorData.error || 'フォロー操作に失敗しました',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('フォロー操作エラー:', error);
+      toast({
+        title: 'エラー',
+        description: 'フォロー操作に失敗しました',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTogglingFollow(false);
     }
   };
 
@@ -194,6 +297,12 @@ function UserProfileContent() {
                 <div className='h-2 w-2 rounded-full bg-primary' />
                 <span className='text-muted-foreground'>{`${imageCount} 作品`}</span>
               </div>
+              {!isOwnProfile && (
+                <div className='flex items-center gap-2'>
+                  <div className='h-2 w-2 rounded-full bg-primary' />
+                  <span className='text-muted-foreground'>{`${followerCount} フォロワー`}</span>
+                </div>
+              )}
             </div>
 
             <div className='flex gap-3 [&>button:nth-child(2)]:hidden'>
@@ -206,8 +315,16 @@ function UserProfileContent() {
                 </Button>
               ) : (
                 <>
-                  <Button className='bg-primary hover:bg-primary/90'>
-                    {'フォロー'}
+                  <Button
+                    className={isFollowing ? 'bg-gray-600 hover:bg-gray-700' : 'bg-primary hover:bg-primary/90'}
+                    onClick={handleToggleFollow}
+                    disabled={isTogglingFollow}
+                  >
+                    {isTogglingFollow
+                      ? '処理中...'
+                      : isFollowing
+                      ? 'フォロー中'
+                      : 'フォロー'}
                   </Button>
                   <Button variant='outline'>{'メッセージ'}</Button>
                 </>
@@ -248,17 +365,17 @@ function UserProfileContent() {
       </div>
 
       <Dialog open={isFollowListOpen} onOpenChange={setIsFollowListOpen}>
-        <DialogContent className='max-w-md max-h-[80vh] overflow-y-auto'>
+        <DialogContent className='max-w-md max-h-[80vh] overflow-y-auto bg-white'>
           <DialogHeader>
-            <DialogTitle>フォロー中のユーザー</DialogTitle>
+            <DialogTitle className='text-black'>フォロー中のユーザー</DialogTitle>
           </DialogHeader>
           <div className='mt-4 space-y-4'>
             {loadingFollows ? (
-              <div className='text-center py-8 text-muted-foreground'>
+              <div className='text-center py-8 text-gray-600'>
                 読み込み中...
               </div>
             ) : followedUsers.length === 0 ? (
-              <div className='text-center py-8 text-muted-foreground'>
+              <div className='text-center py-8 text-gray-600'>
                 フォロー中のユーザーはいません
               </div>
             ) : (
@@ -266,7 +383,7 @@ function UserProfileContent() {
                 <Link
                   key={followedUser.id}
                   href={`/mypage?userId=${followedUser.id}`}
-                  className='flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors'
+                  className='flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 transition-colors'
                   onClick={() => setIsFollowListOpen(false)}
                 >
                   <Avatar className='h-10 w-10'>
@@ -277,7 +394,7 @@ function UserProfileContent() {
                     </AvatarFallback>
                   </Avatar>
                   <div className='flex-1'>
-                    <p className='text-white font-medium'>
+                    <p className='text-black font-medium'>
                       {followedUser.display_name || 'ユーザー'}
                     </p>
                   </div>
