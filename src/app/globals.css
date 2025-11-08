@@ -173,10 +173,18 @@
 }
 
 @layer base {
+  html {
+    /* Prevent layout shift from scrollbar appearing/disappearing */
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
+  }
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+    margin: 0;
   }
 }
+
+
