@@ -30,7 +30,7 @@ export function Tabs({ value, defaultValue, onValueChange, className, children, 
 
   React.useEffect(() => {
     if (!current && defaultValue) setInternal(defaultValue)
-  }, [current, defaultValue])
+  }, [current])
 
   return (
     <TabsContext.Provider value={{ value: current, setValue }}>
@@ -62,10 +62,14 @@ export function TabsTrigger({ value, className, children, ...props }: TabsTrigge
   const ctx = React.useContext(TabsContext)
   if (!ctx) throw new Error("TabsTrigger must be used within Tabs")
   const selected = ctx.value === value
+  const tabId = `tab-${value}`
+  const panelId = `tabpanel-${value}`
   return (
     <button
+      id={tabId}
       role="tab"
       aria-selected={selected}
+      aria-controls={panelId}
       data-state={selected ? "active" : "inactive"}
       onClick={() => ctx.setValue(value)}
       className={cn(
@@ -87,8 +91,17 @@ export function TabsContent({ value, className, children, ...props }: TabsConten
   const ctx = React.useContext(TabsContext)
   if (!ctx) throw new Error("TabsContent must be used within Tabs")
   if (ctx.value !== value) return null
+  const tabId = `tab-${value}`
+  const panelId = `tabpanel-${value}`
   return (
-    <div role="tabpanel" className={cn("rounded-lg", className)} {...props}>
+    <div
+      id={panelId}
+      role="tabpanel"
+      aria-labelledby={tabId}
+      tabIndex={0}
+      className={cn("rounded-lg", className)}
+      {...props}
+    >
       {children}
     </div>
   )
