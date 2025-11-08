@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ImageGallery } from '@/components/ui/imageGallery';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/libs/supabase';
 
@@ -17,13 +19,18 @@ interface ProfileData {
 
 export default function UserProfile() {
   const { user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const userIdParam = searchParams.get('userId');
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [imageCount, setImageCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
+  // 表示するユーザーIDを決定（URLパラメータがあればそれを使用、なければログインユーザー）
+  const targetUserId = userIdParam || user?.id;
+
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!user) {
+      if (!targetUserId) {
         setLoading(false);
         return;
       }
@@ -33,7 +40,7 @@ export default function UserProfile() {
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('display_name, avatar_url, bio')
-          .eq('id', user.id)
+          .eq('id', targetUserId)
           .maybeSingle();
 
         if (profileError) {
@@ -44,12 +51,8 @@ export default function UserProfile() {
           setProfile(profileData);
         } else {
           // プロファイルが存在しない場合のフォールバック
-          const fallbackName =
-            user.user_metadata?.display_name ||
-            user.email?.split('@')[0] ||
-            'ユーザー';
           setProfile({
-            display_name: fallbackName,
+            display_name: 'ユーザー',
             avatar_url: null,
             bio: null,
           });
@@ -59,7 +62,7 @@ export default function UserProfile() {
         const { count, error: countError } = await supabase
           .from('images')
           .select('*', { count: 'exact', head: true })
-          .eq('profile_id', user.id);
+          .eq('profile_id', targetUserId);
 
         if (countError) {
           console.error('作品数取得エラー:', countError);
@@ -76,15 +79,12 @@ export default function UserProfile() {
     if (!authLoading) {
       fetchProfile();
     }
-  }, [user, authLoading]);
+  }, [targetUserId, authLoading]);
 
   // デフォルトのアバター初期文字を取得
   const getAvatarInitials = () => {
     if (profile?.display_name) {
       return profile.display_name.slice(0, 2).toUpperCase();
-    }
-    if (user?.email) {
-      return user.email.slice(0, 2).toUpperCase();
     }
     return 'U';
   };
@@ -93,12 +93,6 @@ export default function UserProfile() {
   const getDisplayName = () => {
     if (profile?.display_name) {
       return profile.display_name;
-    }
-    if (user?.user_metadata?.display_name) {
-      return user.user_metadata.display_name;
-    }
-    if (user?.email) {
-      return user.email.split('@')[0];
     }
     return 'ユーザー';
   };
@@ -111,7 +105,8 @@ export default function UserProfile() {
     );
   }
 
-  if (!user) {
+  // URLパラメータでユーザーIDが指定されている場合は、ログイン不要
+  if (!userIdParam && !user) {
     return (
       <div className='min-h-screen bg-black text-white flex items-center justify-center'>
         <div className='text-muted-foreground'>ログインが必要です</div>
@@ -123,13 +118,18 @@ export default function UserProfile() {
     <div className='min-h-screen bg-black text-white'>
       {/* Logo (same as top page) */}
       <div className='w-full py-6 flex justify-start'>
-        <Image
-          src='/repicLogo.png'
-          alt='Repic'
-          width={150}
-          height={40}
-          className='object-contain'
-        />
+        <Link
+          href='/'
+          className='cursor-pointer hover:opacity-80 transition-opacity'
+        >
+          <Image
+            src='/repicLogo.png'
+            alt='Repic'
+            width={150}
+            height={40}
+            className='object-contain'
+          />
+        </Link>
       </div>
 
       {/* Profile Section */}
@@ -185,7 +185,7 @@ export default function UserProfile() {
           </TabsList>
 
           <TabsContent value='gallery' className='mt-0'>
-            <ImageGallery />
+            <ImageGallery userId={targetUserId} />
           </TabsContent>
 
           <TabsContent value='liked' className='mt-0'>

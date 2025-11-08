@@ -16,7 +16,11 @@ interface GeneratedImage {
   createdAt: string;
 }
 
-export function ImageGallery() {
+interface ImageGalleryProps {
+  userId?: string | null;
+}
+
+export function ImageGallery({ userId }: ImageGalleryProps) {
   const { user } = useAuth();
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(
@@ -25,9 +29,12 @@ export function ImageGallery() {
   const [likedImages, setLikedImages] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
+  // 表示するユーザーIDを決定（propsで指定されていればそれを使用、なければログインユーザー）
+  const targetUserId = userId || user?.id;
+
   useEffect(() => {
     const fetchImages = async () => {
-      if (!user) {
+      if (!targetUserId) {
         setLoading(false);
         return;
       }
@@ -36,7 +43,7 @@ export function ImageGallery() {
         const { data, error } = await supabase
           .from('images')
           .select('id, image_url, prompt, created_at')
-          .eq('profile_id', user.id)
+          .eq('profile_id', targetUserId)
           .order('created_at', { ascending: false });
 
         if (error) {
@@ -61,7 +68,7 @@ export function ImageGallery() {
     };
 
     fetchImages();
-  }, [user]);
+  }, [targetUserId]);
 
   const toggleLike = (id: string) => {
     setLikedImages((prev) => {
@@ -131,7 +138,7 @@ export function ImageGallery() {
           <Card
             key={image.id}
             onClick={() => setSelectedImage(image)}
-            className='group relative overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-lg hover:border-primary/50'
+            className='group relative overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-lg rounded-none border-0'
           >
             <div className='aspect-square relative overflow-hidden'>
               <img
