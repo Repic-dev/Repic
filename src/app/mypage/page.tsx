@@ -371,11 +371,11 @@ function UserProfileContent() {
         </div>
 
         <Tabs defaultValue='gallery' className='w-full'>
-          <TabsList className='w-full md:w-auto mb-8 bg-card border border-border'>
-            <TabsTrigger value='gallery' className='flex-1 md:flex-none'>
+          <TabsList className='inline-flex w-full mb-8 h-auto p-1 bg-white rounded-lg'>
+            <TabsTrigger value='gallery' className='flex-1 rounded-md px-4 py-3 text-gray-600 data-[state=active]:bg-gray-200 data-[state=active]:text-gray-900 hover:text-gray-900 transition-colors'>
               {'ギャラリー'}
             </TabsTrigger>
-            <TabsTrigger value='liked' className='flex-1 md:flex-none'>
+            <TabsTrigger value='liked' className='flex-1 rounded-md px-4 py-3 text-gray-600 data-[state=active]:bg-gray-200 data-[state=active]:text-gray-900 hover:text-gray-900 transition-colors'>
               {'いいね'}
             </TabsTrigger>
             <TabsTrigger value='collections' className='hidden'>
@@ -383,7 +383,7 @@ function UserProfileContent() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value='gallery' className='mt-0'>
+          <TabsContent value='gallery' className='mt-0 w-full'>
             <ImageGallery 
               userId={targetUserId} 
               onImageDeleted={async () => {
@@ -402,7 +402,7 @@ function UserProfileContent() {
             />
           </TabsContent>
 
-          <TabsContent value='liked' className='mt-0'>
+          <TabsContent value='liked' className='mt-0 w-full'>
             <div className='text-center py-16 text-muted-foreground'>
               {'いいねした作品がここに表示されます'}
             </div>
