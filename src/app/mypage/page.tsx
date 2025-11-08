@@ -40,7 +40,6 @@ function UserProfileContent() {
   const [followedUsers, setFollowedUsers] = useState<FollowedUser[]>([]);
   const [loadingFollows, setLoadingFollows] = useState(false);
 
-  // 表示するユーザーIDを決定（URLパラメータがあればそれを使用、なければログインユーザー）
   const targetUserId = userIdParam || user?.id;
 
   useEffect(() => {
@@ -51,7 +50,6 @@ function UserProfileContent() {
       }
 
       try {
-        // プロフィール情報を取得
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('display_name, avatar_url, bio')
@@ -65,7 +63,6 @@ function UserProfileContent() {
         if (profileData) {
           setProfile(profileData);
         } else {
-          // プロファイルが存在しない場合のフォールバック
           setProfile({
             display_name: 'ユーザー',
             avatar_url: null,
@@ -73,7 +70,6 @@ function UserProfileContent() {
           });
         }
 
-        // 作品数を取得
         const { count, error: countError } = await supabase
           .from('images')
           .select('*', { count: 'exact', head: true })
@@ -96,7 +92,6 @@ function UserProfileContent() {
     }
   }, [targetUserId, authLoading]);
 
-  // デフォルトのアバター初期文字を取得
   const getAvatarInitials = () => {
     if (profile?.display_name) {
       return profile.display_name.slice(0, 2).toUpperCase();
@@ -104,7 +99,6 @@ function UserProfileContent() {
     return 'U';
   };
 
-  // 表示名を取得
   const getDisplayName = () => {
     if (profile?.display_name) {
       return profile.display_name;
@@ -112,10 +106,8 @@ function UserProfileContent() {
     return 'ユーザー';
   };
 
-  // 自分のマイページかどうかを判定
   const isOwnProfile = targetUserId === user?.id;
 
-  // フォロー一覧を取得
   const fetchFollowedUsers = async () => {
     if (!user?.id) return;
 
@@ -138,7 +130,6 @@ function UserProfileContent() {
     }
   };
 
-  // フォロー一覧モーダルを開く
   const handleOpenFollowList = () => {
     setIsFollowListOpen(true);
     fetchFollowedUsers();
@@ -152,7 +143,6 @@ function UserProfileContent() {
     );
   }
 
-  // URLパラメータでユーザーIDが指定されている場合は、ログイン不要
   if (!userIdParam && !user) {
     return (
       <div className='min-h-screen bg-black text-white flex items-center justify-center'>
@@ -163,7 +153,6 @@ function UserProfileContent() {
 
   return (
     <div className='min-h-screen bg-black text-white'>
-      {/* Logo (same as top page) */}
       <div className='w-full py-6 flex justify-start'>
         <Link
           href='/'
@@ -179,7 +168,6 @@ function UserProfileContent() {
         </Link>
       </div>
 
-      {/* Profile Section */}
       <div className='max-w-6xl mx-auto py-8'>
         <div className='flex flex-col md:flex-row gap-8 items-start mb-8'>
           <Avatar className='h-24 w-24 md:h-32 md:w-32 border-2 border-primary/20'>
@@ -228,7 +216,6 @@ function UserProfileContent() {
           </div>
         </div>
 
-        {/* Tabs */}
         <Tabs defaultValue='gallery' className='w-full'>
           <TabsList className='w-full md:w-auto mb-8 bg-card border border-border'>
             <TabsTrigger value='gallery' className='flex-1 md:flex-none'>
@@ -260,7 +247,6 @@ function UserProfileContent() {
         </Tabs>
       </div>
 
-      {/* フォロー中のユーザーモーダル */}
       <Dialog open={isFollowListOpen} onOpenChange={setIsFollowListOpen}>
         <DialogContent className='max-w-md max-h-[80vh] overflow-y-auto'>
           <DialogHeader>
