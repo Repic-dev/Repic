@@ -1,11 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ImageGallery } from '@/components/ui/imageGallery';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogHeader,
+} from '@/components/ui/dialog';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,13 +23,22 @@ interface ProfileData {
   bio: string | null;
 }
 
-export default function UserProfile() {
+interface FollowedUser {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+function UserProfileContent() {
   const { user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const userIdParam = searchParams.get('userId');
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [imageCount, setImageCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [isFollowListOpen, setIsFollowListOpen] = useState(false);
+  const [followedUsers, setFollowedUsers] = useState<FollowedUser[]>([]);
+  const [loadingFollows, setLoadingFollows] = useState(false);
 
   // 表示するユーザーIDを決定（URLパラメータがあればそれを使用、なければログインユーザー）
   const targetUserId = userIdParam || user?.id;
@@ -97,6 +112,38 @@ export default function UserProfile() {
     return 'ユーザー';
   };
 
+  // 自分のマイページかどうかを判定
+  const isOwnProfile = targetUserId === user?.id;
+
+  // フォロー一覧を取得
+  const fetchFollowedUsers = async () => {
+    if (!user?.id) return;
+
+    setLoadingFollows(true);
+    try {
+      // フォローテーブルが存在する場合の実装
+      // 現時点では空の配列を返す（後で実装可能）
+      // const { data, error } = await supabase
+      //   .from('follows')
+      //   .select('followed_id, profiles!follows_followed_id_fkey(id, display_name, avatar_url)')
+      //   .eq('follower_id', user.id);
+
+      // 仮の実装：後でフォローテーブルが追加されたら実装
+      setFollowedUsers([]);
+    } catch (error) {
+      console.error('フォロー一覧取得エラー:', error);
+      setFollowedUsers([]);
+    } finally {
+      setLoadingFollows(false);
+    }
+  };
+
+  // フォロー一覧モーダルを開く
+  const handleOpenFollowList = () => {
+    setIsFollowListOpen(true);
+    fetchFollowedUsers();
+  };
+
   if (authLoading || loading) {
     return (
       <div className='min-h-screen bg-black text-white flex items-center justify-center'>
@@ -162,10 +209,21 @@ export default function UserProfile() {
             </div>
 
             <div className='flex gap-3 [&>button:nth-child(2)]:hidden'>
-              <Button className='bg-primary hover:bg-primary/90'>
-                {'フォロー'}
-              </Button>
-              <Button variant='outline'>{'メッセージ'}</Button>
+              {isOwnProfile ? (
+                <Button
+                  className='bg-primary hover:bg-primary/90'
+                  onClick={handleOpenFollowList}
+                >
+                  {'フォロー中のユーザー'}
+                </Button>
+              ) : (
+                <>
+                  <Button className='bg-primary hover:bg-primary/90'>
+                    {'フォロー'}
+                  </Button>
+                  <Button variant='outline'>{'メッセージ'}</Button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -201,6 +259,62 @@ export default function UserProfile() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* フォロー中のユーザーモーダル */}
+      <Dialog open={isFollowListOpen} onOpenChange={setIsFollowListOpen}>
+        <DialogContent className='max-w-md max-h-[80vh] overflow-y-auto'>
+          <DialogHeader>
+            <DialogTitle>フォロー中のユーザー</DialogTitle>
+          </DialogHeader>
+          <div className='mt-4 space-y-4'>
+            {loadingFollows ? (
+              <div className='text-center py-8 text-muted-foreground'>
+                読み込み中...
+              </div>
+            ) : followedUsers.length === 0 ? (
+              <div className='text-center py-8 text-muted-foreground'>
+                フォロー中のユーザーはいません
+              </div>
+            ) : (
+              followedUsers.map((followedUser) => (
+                <Link
+                  key={followedUser.id}
+                  href={`/mypage?userId=${followedUser.id}`}
+                  className='flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors'
+                  onClick={() => setIsFollowListOpen(false)}
+                >
+                  <Avatar className='h-10 w-10'>
+                    <AvatarImage src={followedUser.avatar_url || undefined} />
+                    <AvatarFallback className='bg-primary/10 text-primary'>
+                      {followedUser.display_name?.slice(0, 2).toUpperCase() ||
+                        'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className='flex-1'>
+                    <p className='text-white font-medium'>
+                      {followedUser.display_name || 'ユーザー'}
+                    </p>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+export default function UserProfile() {
+  return (
+    <Suspense
+      fallback={
+        <div className='min-h-screen bg-black text-white flex items-center justify-center'>
+          <div className='text-muted-foreground'>読み込み中...</div>
+        </div>
+      }
+    >
+      <UserProfileContent />
+    </Suspense>
   );
 }
