@@ -149,8 +149,8 @@ export function GenerationDialog({ open, onOpenChange, image }: GenerationDialog
           <DialogTitle>生成完了</DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="aspect-video relative bg-muted rounded-lg overflow-hidden">
+        <div className="flex flex-col gap-4">
+          <div className="aspect-video relative bg-muted rounded-lg overflow-hidden mx-auto max-w-3xl w-full">
             <img 
               src={image.url || "/placeholder.svg"} 
               alt="Generated" 
