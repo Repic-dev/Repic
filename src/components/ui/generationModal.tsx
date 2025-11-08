@@ -20,12 +20,23 @@ export function GenerationDialog({ open, onOpenChange, image, onImageUpdate }: G
   const [isContributing, setIsContributing] = useState(false)
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [editedPrompt, setEditedPrompt] = useState("")
+  const [promptHistory, setPromptHistory] = useState<Array<{ prompt: string; timestamp: string }>>([])
   const { toast } = useToast()
   const { user } = useAuth()
 
   useEffect(() => {
     if (image) {
       setEditedPrompt(image.prompt)
+      // 既存の履歴がある場合はそれを使用、ない場合は初期プロンプトを履歴に追加
+      if (image.promptHistory && image.promptHistory.length > 0) {
+        setPromptHistory(image.promptHistory)
+      } else {
+        // 初期プロンプトを履歴の最初の項目として追加
+        setPromptHistory([{
+          prompt: image.prompt,
+          timestamp: new Date().toISOString()
+        }])
+      }
     }
   }, [image])
 
@@ -115,11 +126,22 @@ export function GenerationDialog({ open, onOpenChange, image, onImageUpdate }: G
       if (response.ok) {
         const data = await response.json()
         const imageId = Date.now().toString()
+        
+        // 再生成に使ったプロンプトを履歴に追加（実際に生成に使われたプロンプト）
+        const newHistoryItem = {
+          prompt: editedPrompt,
+          timestamp: new Date().toISOString()
+        }
+        const updatedHistory = [...promptHistory, newHistoryItem]
+        
         const newImage: ImageMeta = {
           id: imageId,
           url: data.imageUrl,
           prompt: editedPrompt,
+          promptHistory: updatedHistory,
         }
+        
+        setPromptHistory(updatedHistory)
         
         if (onImageUpdate) {
           onImageUpdate(newImage)
@@ -169,6 +191,8 @@ export function GenerationDialog({ open, onOpenChange, image, onImageUpdate }: G
         document.body.removeChild(link)
       }, 100)
 
+      // 投稿時は既存の履歴をそのまま使用（実際に生成に使われたプロンプトだけが含まれている）
+      // 現在表示されている画像のプロンプトを使用（実際に生成に使われたプロンプト）
       const response = await fetch('/api/post', {
         method: 'POST',
         headers: {
@@ -176,7 +200,8 @@ export function GenerationDialog({ open, onOpenChange, image, onImageUpdate }: G
         },
         body: JSON.stringify({
           imageUrl: image.url,
-          prompt: image.prompt,
+          prompt: image.prompt, // 実際に生成に使われたプロンプトを使用
+          promptHistory: promptHistory, // 既存の履歴をそのまま使用
           profileId: user?.id || null,
         }),
       })

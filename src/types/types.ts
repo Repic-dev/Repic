@@ -64,8 +64,14 @@ export interface SearchResult {
   displayName?: string | null
 }
 
+export interface PromptHistoryItem {
+  prompt: string
+  timestamp: string
+}
+
 export interface ImageMeta {
   id: string
   url: string
   prompt: string
+  promptHistory?: PromptHistoryItem[]
 }

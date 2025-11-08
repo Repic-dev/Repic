@@ -37,7 +37,7 @@ const prisma = new PrismaClient({
 
 export async function POST(req: Request) {
   try {
-    const { imageUrl, prompt, profileId } = await req.json();
+    const { imageUrl, prompt, promptHistory, profileId } = await req.json();
 
     if (!imageUrl || !prompt) {
       return NextResponse.json(
@@ -86,18 +86,35 @@ export async function POST(req: Request) {
 
     // 5. Prismaでデータベースに保存
     const vectorString = `[${embedding.join(",")}]`;
+    
+    // プロンプト履歴をJSON文字列に変換（存在する場合）
+    const promptHistoryJson = promptHistory ? JSON.stringify(promptHistory) : null;
 
     let savedImage;
     if (profileId) {
-      savedImage = await prisma.$executeRaw`
-        INSERT INTO images (profile_id, prompt, image_url, embedding_vector)
-        VALUES (${profileId}::uuid, ${prompt}, ${publicUrl}, ${vectorString}::vector)
-      `;
+      if (promptHistoryJson) {
+        savedImage = await prisma.$executeRaw`
+          INSERT INTO images (profile_id, prompt, prompt_history, image_url, embedding_vector)
+          VALUES (${profileId}::uuid, ${prompt}, ${promptHistoryJson}::jsonb, ${publicUrl}, ${vectorString}::vector)
+        `;
+      } else {
+        savedImage = await prisma.$executeRaw`
+          INSERT INTO images (profile_id, prompt, image_url, embedding_vector)
+          VALUES (${profileId}::uuid, ${prompt}, ${publicUrl}, ${vectorString}::vector)
+        `;
+      }
     } else {
-      savedImage = await prisma.$executeRaw`
-        INSERT INTO images (profile_id, prompt, image_url, embedding_vector)
-        VALUES (NULL, ${prompt}, ${publicUrl}, ${vectorString}::vector)
-      `;
+      if (promptHistoryJson) {
+        savedImage = await prisma.$executeRaw`
+          INSERT INTO images (profile_id, prompt, prompt_history, image_url, embedding_vector)
+          VALUES (NULL, ${prompt}, ${promptHistoryJson}::jsonb, ${publicUrl}, ${vectorString}::vector)
+        `;
+      } else {
+        savedImage = await prisma.$executeRaw`
+          INSERT INTO images (profile_id, prompt, image_url, embedding_vector)
+          VALUES (NULL, ${prompt}, ${publicUrl}, ${vectorString}::vector)
+        `;
+      }
     }
     
 

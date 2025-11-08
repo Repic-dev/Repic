@@ -130,6 +130,10 @@ export default function Home() {
           id: imageId,
           url: data.imageUrl,
           prompt: searchQuery,
+          promptHistory: [{
+            prompt: searchQuery,
+            timestamp: new Date().toISOString()
+          }]
         });
         setIsDialogOpen(true);
       } else {
