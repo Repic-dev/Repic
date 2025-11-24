@@ -77,7 +77,6 @@ export async function POST(request: NextRequest) {
       LEFT JOIN profiles p ON i.profile_id = p.id
       WHERE i.embedding_vector IS NOT NULL
       ORDER BY i.embedding_vector <=> ${vectorString}::vector
-      LIMIT 5
     `;
 
     
