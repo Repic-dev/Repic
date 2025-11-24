@@ -82,18 +82,23 @@ export async function POST(request: NextRequest) {
 
     
 
-    // 3. フロントエンド用にフォーマット
-    const formattedResults = results.map((row) => ({
-      id: row.id,
-      userId: row.profile_id,
-      profileId: row.profile_id,
-      displayName: row.display_name,
-      prompt: row.prompt,
-      promptHistory: row.prompt_history || null,
-      imageUrl: row.image_url,
-      createdAt: row.created_at.toISOString(),
-      similarity: Number(row.similarity),
-    }));
+    // 類似度の閾値（この値より低い場合は除外）
+    const SIMILARITY_THRESHOLD = 0.3;
+
+    // 3. フロントエンド用にフォーマット（閾値以上のもののみ）
+    const formattedResults = results
+      .filter((row) => row.similarity >= SIMILARITY_THRESHOLD)
+      .map((row) => ({
+        id: row.id,
+        userId: row.profile_id,
+        profileId: row.profile_id,
+        displayName: row.display_name,
+        prompt: row.prompt,
+        promptHistory: row.prompt_history || null,
+        imageUrl: row.image_url,
+        createdAt: row.created_at.toISOString(),
+        similarity: Number(row.similarity),
+      }));
 
     return NextResponse.json({
       success: true,
